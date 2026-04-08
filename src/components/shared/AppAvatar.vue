@@ -1,0 +1,171 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import { usePageVideo } from '@/composables/usePageVideo'
+import { useSoundControl } from '@/composables/useSoundControl'
+
+const props = defineProps<{ size?: number; mini?: boolean; videoSrc?: string; subtitle?: string }>()
+const { videoSrc: autoVideoSrc } = usePageVideo()
+const { isSoundEnabled } = useSoundControl()
+const { t } = useI18n()
+const route = useRoute()
+
+const bubbleKey = ref(0)
+watch(() => route.fullPath, () => {
+  bubbleKey.value++
+})
+
+onMounted(() => {
+  if (props.mini) sessionStorage.removeItem('fromLang')
+})
+
+onUnmounted(() => {
+  if (props.mini) sessionStorage.setItem('returnToHome', '1')
+})
+</script>
+
+<template>
+  <!-- Mini avatar in top-right corner -->
+  <div v-if="mini"
+    class="absolute top-2.5 right-3.5 fhd:top-3 fhd:right-4 z-10 flex items-center"
+  >
+    <!-- Subtitle bubble (shown when muted) -->
+    <Transition name="subtitle-fade">
+      <div v-if="!isSoundEnabled" :key="bubbleKey" class="subtitle-bubble-mini">
+        {{ props.subtitle ?? t('subtitle.mini') }}
+        <span class="bubble-tail" />
+      </div>
+    </Transition>
+
+    <div class="avatar-glow-mini rounded-full overflow-hidden flex-shrink-0">
+      <video
+        :src="props.videoSrc ?? autoVideoSrc"
+        autoplay loop :muted="!isSoundEnabled" playsinline
+        class="w-full h-full object-cover"
+      />
+    </div>
+  </div>
+
+  <!-- Regular avatar -->
+  <div v-else
+    class="avatar-glow rounded-full overflow-hidden border-[3px] border-white flex-shrink-0"
+    :style="{
+      width: `${props.size ?? 120}px`,
+      height: `${props.size ?? 120}px`,
+    }">
+    <video
+      :src="props.videoSrc ?? autoVideoSrc"
+      autoplay loop :muted="!isSoundEnabled" playsinline
+      class="w-full h-full object-cover"
+    />
+  </div>
+</template>
+
+<style scoped>
+/* Mini avatar glow */
+.avatar-glow-mini {
+  width: clamp(76px, 12vw, 140px);
+  height: clamp(76px, 12vw, 140px);
+  border: 2px solid rgba(99, 160, 255, 0.5);
+  box-shadow: 0 3px 12px rgba(21, 101, 192, 0.25);
+  will-change: filter;
+  animation: glow-pulse 6s ease-in-out infinite;
+}
+
+@media (min-height: 1600px) {
+  .avatar-glow-mini {
+    width: 160px;
+    height: 160px;
+    border-width: 3px;
+    box-shadow: 0 6px 24px rgba(21, 101, 192, 0.35);
+  }
+  .subtitle-bubble-mini {
+    font-size: 28px;
+    padding: 22px 28px;
+    border-radius: 20px;
+    max-width: 380px;
+    right: -20px;
+  }
+}
+
+/* Large avatar glow */
+.avatar-glow {
+  border: 2px solid rgba(99, 160, 255, 0.45);
+  box-shadow: 0 4px 16px rgba(21, 101, 192, 0.22);
+  will-change: filter;
+  animation: glow-pulse 6s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(99, 160, 255, 0.55));
+  }
+}
+
+.avatar-enter {
+  animation: avatarEnterFromCenter 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes avatarEnterFromCenter {
+  0%   { opacity: 0; transform: scale(0.3); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Subtitle bubble next to mini avatar */
+.subtitle-bubble-mini {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(21, 101, 192, 0.25);
+  color: #1a2340;
+  font-size: 15px;
+  font-weight: 700;
+  right: -15px;
+  line-height: 1.4;
+  padding: 14px 18px;
+  border-radius: 12px;
+  max-width: 200px;
+  white-space: normal;
+  border: 1px solid rgba(21, 101, 192, 0.1);
+  transform-origin: right center;
+  animation: bubbleOpen 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes bubbleOpen {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0%);
+  }
+}
+
+/* Arrow pointing right toward avatar */
+.bubble-tail {
+ 
+  right: -47px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 7px solid #fff;
+  filter: drop-shadow(1px 0 1px rgba(21, 101, 192, 0.1));
+}
+
+/* Transition — только fade при уходе */
+.subtitle-fade-enter-active,
+.subtitle-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.subtitle-fade-enter-from,
+.subtitle-fade-leave-to {
+  opacity: 0;
+}
+</style>

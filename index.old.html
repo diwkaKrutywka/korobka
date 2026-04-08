@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Kiosk Demo</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin:0">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+/* ═══════════════════════════════════════════
+   DESIGN SYSTEM — Medical Kiosk Terminal
+   Aesthetic: Clean clinical warmth, soft depth
+   ═══════════════════════════════════════════ */
+
+const C = {
+  pri: "#0B8F63", priL: "#E6F7F0", priD: "#067A52", priGlow: "rgba(11,143,99,0.15)",
+  white: "#FFFFFF", bg: "#F2F6F5", bgWarm: "#F8FAFA",
+  txt: "#1B2D2A", txtSec: "#5E7572", txtMuted: "#94A8A5",
+  border: "#D5E1DE", borderL: "#EAF0EE",
+  danger: "#D94848", dangerL: "#FDF0F0",
+  success: "#1DAA5C", successL: "#E8FAF0",
+  warn: "#E8941A", warnL: "#FFF8EB",
+  blue: "#3B82F6", blueL: "#EFF6FF",
+  overlay: "rgba(15,30,26,0.5)",
+  shadow: "0 2px 12px rgba(0,0,0,0.06)",
+  shadowLg: "0 8px 32px rgba(0,0,0,0.12)",
+  grad: "linear-gradient(135deg, #0B8F63 0%, #10B981 100%)",
+  gradSoft: "linear-gradient(180deg, #F2F6F5 0%, #E6F7F0 100%)",
+};
+
+const font = `'Nunito Sans', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif`;
+
+/* ═══ DATA ═══ */
+const DEPARTMENTS = [
+  { name: "Терапевт" }, { name: "Инфекционист" },
+  { name: "Гинеколог" }, { name: "Эндокринолог" },
+  { name: "Хирург" }, { name: "Травматолог" },
+  { name: "Кардиолог" }, { name: "Ревматолог" },
+  { name: "Офтальмолог" }, { name: "ЛОР" },
+];
+
+const DOCTORS = [
+  { id: 1, name: "Ахметов Дастан", spec: "Инфекционист", room: "121", floor: 1, days: "пн, ср, пт", hours: "14:00–20:00", days2: "вт, чт", hours2: "8:00–14:00" },
+  { id: 2, name: "Султанов Азамат", spec: "Инфекционист", room: "247", floor: 2, days: "пн, ср, пт", hours: "14:00–20:00", days2: "вт, чт", hours2: "8:00–14:00" },
+  { id: 3, name: "Касымова Айгуль", spec: "Гинеколог", room: "305", floor: 3, days: "пн–пт", hours: "9:00–17:00" },
+  { id: 4, name: "Нурланов Ерлан", spec: "Хирург", room: "412", floor: 4, days: "пн, ср, пт", hours: "8:00–16:00" },
+  { id: 5, name: "Жумабаева Дина", spec: "Терапевт", room: "102", floor: 1, days: "пн–пт", hours: "8:00–14:00" },
+  { id: 6, name: "Байжанов Марат", spec: "Кардиолог", room: "310", floor: 3, days: "пн, вт, чт", hours: "9:00–17:00" },
+  { id: 7, name: "Сериков Тимур", spec: "Травматолог", room: "415", floor: 4, days: "пн–пт", hours: "8:00–15:00" },
+];
+
+const NAVIGATION = [
+  { dept: "Регистратура", room: "101", floor: 1, note: "Приём документов" },
+  { dept: "Терапия", room: "102–110", floor: 1, note: "" },
+  { dept: "Лаборатория", room: "115", floor: 1, note: "Забор анализов до 11:00" },
+  { dept: "Инфекционное", room: "121, 247", floor: "1–2", note: "" },
+  { dept: "Гинекология", room: "301–310", floor: 3, note: "" },
+  { dept: "Кардиология", room: "310–315", floor: 3, note: "" },
+  { dept: "Хирургия", room: "410–420", floor: 4, note: "Перевязочная — 418" },
+  { dept: "Аптека", room: "Фойе", floor: 1, note: "8:00–20:00" },
+  { dept: "Рентген / УЗИ", room: "Подвал, 001–005", floor: "Ц", note: "По направлению" },
+];
+
+const OSMS_FAQ = [
+  { q: "Что такое ОСМС?", a: "Обязательное социальное медицинское страхование — система, обеспечивающая доступ к медицинским услугам для всех граждан РК." },
+  { q: "Кто обязан платить взносы?", a: "Все работающие граждане через работодателя, ИП — самостоятельно, безработные — через ЦОН." },
+  { q: "Какие услуги покрывает ОСМС?", a: "Амбулаторная помощь, консультации специалистов, базовые анализы, стационарное лечение, скорая помощь." },
+  { q: "Что делать, если не застрахован?", a: "Обратитесь в ЦОН или оформите онлайн через egov.kz. Также можно оплатить в Kaspi." },
+  { q: "Как проверить статус?", a: "Введите ИИН в разделе «Проверить статус» на этом терминале." },
+];
+
+const CLINIC_FAQ = [
+  { cat: "Общие услуги", items: [
+    { q: "Какие услуги доступны?", a: "Приём врачей-специалистов, запись на диагностику и анализы, получение справок, платные услуги." },
+    { q: "Как прикрепиться?", a: "Обратитесь в регистратуру с удостоверением личности. Прикрепление бесплатное, 10–15 минут." },
+    { q: "Как вызвать врача на дом?", a: "Позвоните в регистратуру до 12:00 или оставьте заявку через DamuMed." },
+  ]},
+  { cat: "Запись на приём", items: [
+    { q: "Как записаться?", a: "Введите ИИН на терминале, выберите специалиста и удобное время." },
+    { q: "Можно ли отменить?", a: "Через личный кабинет на терминале (с OTP) или в регистратуре." },
+  ]},
+  { cat: "Документы и данные", items: [
+    { q: "Как получить справку?", a: "Обратитесь к терапевту, справка будет готова в течение 1–3 дней." },
+  ]},
+  { cat: "Оплата и страховка", items: [
+    { q: "Что бесплатно по ОСМС?", a: "Консультации специалистов, базовые анализы, вакцинация по календарю." },
+  ]},
+];
+
+const NPA_DOCS = [
+  { num: "№ 135", title: "Об утверждении стандартов оказания медпомощи", date: "12.01.2024" },
+  { num: "№ 289", title: "О порядке прикрепления к организациям ПМСП", date: "15.03.2024" },
+  { num: "№ 412", title: "Об утверждении перечня гарантированного объёма бесплатной медпомощи", date: "22.05.2024" },
+  { num: "№ 556", title: "О порядке оказания медпомощи в рамках ОСМС", date: "01.07.2024" },
+  { num: "№ 701", title: "Об утверждении правил лекарственного обеспечения", date: "10.09.2024" },
+];
+
+const SLOTS = ["8:00","8:30","9:00","9:30","10:00","10:30","11:00","14:00","14:30","15:00","15:30","16:00","16:30","17:00"];
+const BOOKED = ["9:00","10:30","14:30","16:00"];
+
+const QUEUE_SERVICES = [
+  { id: "reg", name: "Регистратура", prefix: "Р" },
+  { id: "lab", name: "Лаборатория", prefix: "Л" },
+  { id: "pharm", name: "Аптека", prefix: "А" },
+  { id: "pre", name: "Доврачебный каб.", prefix: "Д" },
+];
+
+const MY_APPOINTMENTS = [
+  { id: 1, doctor: "Ахметов Дастан", spec: "Инфекционист", date: "5 марта 2026", time: "14:30", room: "121" },
+  { id: 2, doctor: "Жумабаева Дина", spec: "Терапевт", date: "10 марта 2026", time: "9:00", room: "102" },
+];
+
+const HISTORY = [
+  { doctor: "Касымова Айгуль", spec: "Гинеколог", date: "15 фев 2026", time: "11:00", status: "done" },
+  { doctor: "Байжанов Марат", spec: "Кардиолог", date: "2 фев 2026", time: "10:00", status: "done" },
+  { doctor: "Жумабаева Дина", spec: "Терапевт", date: "20 янв 2026", time: "8:30", status: "cancel" },
+];
+
+/* ═══ CSS ═══ */
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap');
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(.92) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes fadeOverlay{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(105%)}to{transform:translateY(0)}}
+@keyframes badgeGlow{0%,100%{box-shadow:-4px 0 14px rgba(11,143,99,.2)}50%{box-shadow:-8px 0 28px rgba(11,143,99,.55)}}
+@keyframes badgeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes aura{0%{opacity:0.45;transform:scale(1)}100%{opacity:0;transform:scale(2.4)}}
+.fi{animation:fadeIn .3s ease-out both}.pi{animation:popIn .3s cubic-bezier(.16,1,.3,1) both}
+.ov{animation:fadeOverlay .2s ease-out both}.su{animation:slideUp .3s cubic-bezier(.16,1,.3,1) both}
+.bg{animation:badgeFloat 3s ease-in-out infinite,badgeGlow 2.8s ease-in-out infinite}
+.ar{position:absolute;inset:0;border-radius:14px 0 0 14px;background:linear-gradient(135deg,#0B8F63,#10B981);pointer-events:none}
+.ar1{animation:aura 2.6s ease-out infinite}.ar2{animation:aura 2.6s ease-out 1.3s infinite}
+.kb{transition:transform .1s}.kb:active{transform:scale(.97)!important}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#0B8F6340;border-radius:4px}
+`;
+
+/* ═══ SHARED UI ═══ */
+const Avatar = ({ size = 120 }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", border: `3px solid ${C.white}`, boxShadow: `0 4px 20px ${C.priGlow}`, flexShrink: 0 }}>
+    <video src="idle.mp4" autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}/>
+  </div>
+);
+
+const MiniAv = () => (
+  <div style={{ width: 42, height: 42, borderRadius: "50%", overflow: "hidden", border: `2px solid ${C.white}`, boxShadow: C.shadow, position: "absolute", top: 10, right: 14, zIndex: 5 }}>
+    <video src="idle.mp4" autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}/>
+  </div>
+);
+
+const MenuSection = ({ label, children }) => (
+  <>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "14px 0 8px" }}>
+      <div style={{ flex: 1, height: 1, background: C.borderL }}/>
+      <div style={{ fontSize: 9, fontWeight: 800, color: C.txtMuted, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: font, whiteSpace: "nowrap" }}>{label}</div>
+      <div style={{ flex: 1, height: 1, background: C.borderL }}/>
+    </div>
+    {children}
+  </>
+);
+
+
+const SBar = () => {
+  const [t, setT] = useState(new Date());
+  useEffect(() => { const i = setInterval(() => setT(new Date()), 30000); return () => clearInterval(i); }, []);
+  return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 2px", color: C.pri, fontSize: 12, fontWeight: 700, fontFamily: font }}><div><div style={{ fontSize: 14 }}>{t.toLocaleTimeString("ru",{hour:"2-digit",minute:"2-digit"})}</div><div style={{ fontSize: 10, opacity: .6 }}>{t.toLocaleDateString("ru",{day:"2-digit",month:"2-digit"})}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.8" strokeLinecap="round" opacity="0.35"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>;
+};
+
+const Head = ({ title, sub, icon, children }) => (
+  <div className="fi" style={{ textAlign: "center", padding: "6px 0 2px" }}>
+    {icon && <div style={{ fontSize: 30, marginBottom: 2 }}>{icon}</div>}
+    <div style={{ color: C.pri, fontSize: 16, fontWeight: 800, fontFamily: font }}>{title}</div>
+    {sub && <div style={{ color: C.txtSec, fontSize: 11, marginTop: 1, fontFamily: font }}>{sub}</div>}
+    {children}
+  </div>
+);
+
+const Bar = ({ onBack, onHome, lang, onLang }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderTop: `1px solid ${C.borderL}`, background: C.white, position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}>
+    {onBack && <B s o onClick={onBack}>← Назад</B>}
+    {onHome && <B s o onClick={onHome}>Главная</B>}
+    <div style={{ flex: 1 }}/>
+    <B s f onClick={onLang} style={{ minWidth: 38, padding: "5px 8px" }}>{lang === "ru" ? "Қаз" : "Рус"}</B>
+    <div style={{ width: 32, height: 32, borderRadius: "50%", background: C.grad, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", cursor: "pointer" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"/></svg></div>
+  </div>
+);
+
+const B = ({ children, f, o, s, d, style = {}, ...p }) => {
+  const base = { padding: s ? "6px 12px" : "11px 24px", borderRadius: 20, border: "none", fontSize: s ? 11 : 13, fontWeight: 700, cursor: "pointer", fontFamily: font, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, ...style };
+  if (d) return <button className="kb" style={{ ...base, background: C.dangerL, color: C.danger, border: `1.5px solid ${C.danger}30` }} {...p}>{children}</button>;
+  if (o) return <button className="kb" style={{ ...base, background: "transparent", color: C.pri, border: `1.5px solid ${C.pri}40` }} {...p}>{children}</button>;
+  if (f) return <button className="kb" style={{ ...base, background: C.grad, color: "#fff", boxShadow: `0 2px 8px ${C.priGlow}` }} {...p}>{children}</button>;
+  return <button className="kb" style={{ ...base, background: C.priL, color: C.pri }} {...p}>{children}</button>;
+};
+
+const LC = ({ children, onClick, style = {} }) => (
+  <button className="kb" onClick={onClick} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderRadius: 13, background: C.grad, color: "#fff", border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: font, width: "100%", textAlign: "left", boxShadow: `0 2px 8px ${C.priGlow}`, ...style }}>{children}</button>
+);
+
+const IC = ({ children, style = {} }) => (
+  <div style={{ background: C.white, borderRadius: 13, padding: 14, boxShadow: C.shadow, border: `1px solid ${C.borderL}`, ...style }}>{children}</div>
+);
+
+const Md = ({ children, onClose }) => (
+  <div className="ov" style={{ position: "absolute", inset: 0, background: C.overlay, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 12 }} onClick={e => e.target === e.currentTarget && onClose?.()}>
+    <div className="pi" style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 340, maxHeight: "92%", overflowY: "auto", boxShadow: C.shadowLg }}>{children}</div>
+  </div>
+);
+
+const NP = ({ value, onChange, onSubmit, max = 12 }) => {
+  const add = d => value.length < max && onChange(value + d);
+  const ready = value.length === max;
+  const BsIco = () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/>
+      <path d="M18 9l-6 6M12 9l6 6"/>
+    </svg>
+  );
+  const ChkIco = () => (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <path d="M20 6L9 17l-5-5"/>
+    </svg>
+  );
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, width: "100%" }}>
+      {["1","2","3","4","5","6","7","8","9","⌫","0","✓"].map(k => (
+        <button key={k} className="kb"
+          onClick={() => k === "⌫" ? onChange(value.slice(0,-1)) : k === "✓" ? onSubmit?.() : add(k)}
+          style={{
+            height: 52, borderRadius: 13, border: "none", fontFamily: font,
+            background: k === "✓" ? (ready ? C.grad : C.borderL) : C.bg,
+            color: k === "✓" ? (ready ? "#fff" : C.txtMuted) : k === "⌫" ? C.txtSec : C.txt,
+            fontSize: 19, fontWeight: 700, cursor: "pointer",
+            boxShadow: k === "✓" && ready ? `0 4px 12px ${C.priGlow}` : k !== "✓" ? "0 1px 3px rgba(0,0,0,0.05)" : "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background .15s, box-shadow .15s",
+          }}>
+          {k === "⌫" ? <BsIco/> : k === "✓" ? <ChkIco/> : k}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const Sc = ({ children }) => <div style={{ flex: 1, overflowY: "auto", paddingBottom: 72 }}>{children}</div>;
+const St = ({ children, i = 0 }) => <div className="fi" style={{ animationDelay: `${i * 35}ms` }}>{children}</div>;
+
+/* ─── Phone formatter + IIN/OTP block displays ─── */
+const fmtPhone = d =>
+  `+7 (${d.slice(0,3).padEnd(3,"_")}) ${d.slice(3,6).padEnd(3,"_")}-${d.slice(6,8).padEnd(2,"_")}-${d.slice(8,10).padEnd(2,"_")}`;
+
+const DeptIcon = ({ name, size = 18, color = C.txtSec }) => {
+  const paths = {
+    "Терапевт":     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
+    "Инфекционист": <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></>,
+    "Гинеколог":    <><circle cx="12" cy="8" r="4"/><path d="M12 12v8M9 17h6"/></>,
+    "Эндокринолог": <><path d="M9 3h6l1 4H8z"/><rect x="7" y="7" width="10" height="12" rx="2"/><path d="M9 11h6M9 15h4"/></>,
+    "Хирург":       <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></>,
+    "Травматолог":  <><path d="M9 3v6m6-6v6M3 9h18v2a9 9 0 01-18 0V9z"/><path d="M9 22v-4m6 4v-4"/></>,
+    "Кардиолог":    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>,
+    "Ревматолог":   <><circle cx="12" cy="5" r="2"/><path d="M12 7v5M10 9h4"/><circle cx="12" cy="17" r="2"/><path d="M12 14v1"/></>,
+    "Офтальмолог":  <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+    "ЛОР":          <path d="M7 4a8 8 0 018 8 5 5 0 01-5 5c-1.657 0-3-1.343-3-3 0-1.105.895-2 2-2s2 .895 2 2"/>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {paths[name] || <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>}
+    </svg>
+  );
+};
+
+const IinBlocks = ({ v }) => (
+  <div style={{ display: "flex", gap: 7, width: "100%" }}>
+    {[0,1,2].map(i => {
+      const seg = v.slice(i*4, i*4+4);
+      const isCur = v.length >= i*4 && v.length < (i+1)*4;
+      return (
+        <div key={i} style={{
+          flex: 1, height: 52, borderRadius: 13,
+          border: `2px solid ${seg || isCur ? C.pri : C.border}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 17, fontWeight: 800, letterSpacing: 3,
+          background: seg ? C.priL : C.bg, fontFamily: font, color: C.txt,
+          transition: "all .18s",
+        }}>
+          {seg || <span style={{ opacity: isCur ? .45 : .13, fontSize: 11, letterSpacing: 3, fontWeight: 600 }}>····</span>}
+        </div>
+      );
+    })}
+  </div>
+);
+
+const OtpBlocks = ({ v }) => (
+  <div style={{ display: "flex", gap: 10 }}>
+    {[0,1,2,3].map(i => (
+      <div key={i} style={{
+        width: 52, height: 58, borderRadius: 14,
+        border: `2px solid ${i <= v.length && i < 4 ? C.pri : C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 24, fontWeight: 900,
+        background: i < v.length ? C.priL : C.bg,
+        fontFamily: font, color: C.txt, transition: "all .15s",
+      }}>
+        {v[i] || (i === v.length
+          ? <span style={{ display: "block", width: 2, height: 24, background: C.pri, borderRadius: 1, opacity: .55 }}/>
+          : "")}
+      </div>
+    ))}
+  </div>
+);
+
+/* ═══ PHONE ACTUALIZATION BADGE ═══ */
+const PhoneBadge = ({ onClose }) => {
+  const [open, setOpen] = useState(false);
+  const [ph, setPh] = useState("");
+  const [done, setDone] = useState(false);
+  const submit = () => ph.length >= 10 && (setOpen(false), setDone(true));
+
+  useEffect(() => {
+    if (done) { const t = setTimeout(onClose, 3200); return () => clearTimeout(t); }
+  }, [done]);
+
+  /* success strip */
+  if (done) return (
+    <div className="fi" style={{ position: "absolute", bottom: 76, left: 12, right: 12, zIndex: 26, background: C.successL, borderRadius: 13, padding: "10px 14px", display: "flex", alignItems: "center", gap: 11, border: `1px solid ${C.success}20`, boxShadow: C.shadow }}>
+      <div style={{ width: 30, height: 30, borderRadius: 9, background: C.success, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 11, color: C.success, fontFamily: font }}>Данные отправлены</div>
+        <div style={{ fontSize: 9, color: C.txtSec, fontFamily: font, marginTop: 1 }}>Менеджер свяжется для подтверждения</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Side tab wrapper — fixed position, rings here */}
+      <div style={{ position: "absolute", right: 0, top: 190, zIndex: 26 }}>
+        {/* Aura pulse rings */}
+        <div className="ar ar1"/>
+        <div className="ar ar2"/>
+        {/* Badge — levitates */}
+        <div className="bg" onClick={() => setOpen(true)} style={{
+          position: "relative",
+          background: C.grad, borderRadius: "14px 0 0 14px",
+          padding: "16px 11px", cursor: "pointer", userSelect: "none",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        }}>
+          {/* Phone SVG icon */}
+          <div style={{ position: "relative" }}>
+            <svg width="22" height="26" viewBox="0 0 22 26" fill="none">
+              <rect x="1" y="1" width="20" height="24" rx="4" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2"/>
+              <rect x="3" y="4" width="16" height="14" rx="2" fill="rgba(255,255,255,0.15)"/>
+              <rect x="7" y="2.5" width="8" height="1.5" rx="1" fill="rgba(255,255,255,0.5)"/>
+              <rect x="8" y="22.5" width="6" height="1.5" rx="1" fill="rgba(255,255,255,0.4)"/>
+              {/* screen lines */}
+              <rect x="5" y="7" width="12" height="1.5" rx="1" fill="rgba(255,255,255,0.6)"/>
+              <rect x="5" y="10" width="9" height="1.5" rx="1" fill="rgba(255,255,255,0.4)"/>
+              <rect x="5" y="13" width="7" height="1.5" rx="1" fill="rgba(255,255,255,0.3)"/>
+            </svg>
+            {/* notification dot */}
+            <div style={{ position: "absolute", top: -4, right: -4, width: 9, height: 9, borderRadius: "50%", background: C.warn, border: "2px solid rgba(255,255,255,0.9)", animation: "pulse 2s ease-in-out infinite" }}/>
+          </div>
+          {/* dismiss */}
+          <button onClick={e => { e.stopPropagation(); onClose(); }} style={{
+            width: 18, height: 18, borderRadius: "50%",
+            background: "rgba(255,255,255,0.22)", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontSize: 9, fontFamily: font, fontWeight: 800,
+          }}>✕</button>
+        </div>
+      </div>
+
+      {/* Full modal */}
+      {open && (
+        <Md onClose={() => setOpen(false)}>
+          <div style={{ padding: 22 }}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              {/* Phone illustration */}
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                <svg width="78" height="98" viewBox="0 0 78 98" fill="none">
+                  {/* Shadow */}
+                  <ellipse cx="39" cy="94" rx="22" ry="4" fill="rgba(11,143,99,0.1)"/>
+                  {/* Phone body */}
+                  <rect x="9" y="2" width="60" height="88" rx="13" fill={C.priL}/>
+                  <rect x="11" y="4" width="56" height="84" rx="11" fill="#fff" stroke={C.border} strokeWidth="1"/>
+                  {/* Top bar */}
+                  <rect x="11" y="4" width="56" height="15" rx="11" fill={C.priL}/>
+                  <rect x="11" y="12" width="56" height="7" fill={C.priL}/>
+                  {/* Speaker */}
+                  <rect x="29" y="8" width="20" height="3.5" rx="2" fill={C.pri} opacity="0.25"/>
+                  {/* Bottom bar */}
+                  <rect x="11" y="75" width="56" height="13" rx="11" fill={C.priL}/>
+                  <rect x="11" y="75" width="56" height="7" fill={C.priL}/>
+                  {/* Home indicator */}
+                  <rect x="28" y="81" width="22" height="3" rx="2" fill={C.pri} opacity="0.25"/>
+                  {/* Screen content */}
+                  {/* Notification banner */}
+                  <rect x="14" y="22" width="50" height="30" rx="7" fill={C.warnL} stroke={C.warn} strokeWidth="1" opacity="0.95"/>
+                  {/* Notification icon circle */}
+                  <circle cx="24" cy="33" r="7" fill={C.warn}/>
+                  <path d="M21 33h6M24 30v6" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+                  {/* Notification text lines */}
+                  <rect x="35" y="27" width="24" height="3" rx="1.5" fill={C.warn} opacity="0.6"/>
+                  <rect x="35" y="33" width="18" height="2.5" rx="1.5" fill={C.txtMuted} opacity="0.5"/>
+                  <rect x="35" y="39" width="21" height="2.5" rx="1.5" fill={C.txtMuted} opacity="0.35"/>
+                  {/* Below banner - digit boxes hint */}
+                  <rect x="16" y="58" width="9" height="9" rx="3" fill={C.priL} stroke={C.pri} strokeWidth="1" opacity="0.7"/>
+                  <rect x="28" y="58" width="9" height="9" rx="3" fill={C.priL} stroke={C.pri} strokeWidth="1" opacity="0.7"/>
+                  <rect x="40" y="58" width="9" height="9" rx="3" fill={C.priL} stroke={C.pri} strokeWidth="1" opacity="0.7"/>
+                  <rect x="52" y="58" width="9" height="9" rx="3" fill={C.priL} stroke={C.border} strokeWidth="1" opacity="0.4"/>
+                </svg>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: C.txt, fontFamily: font }}>Обновите номер телефона</div>
+              <div style={{ fontSize: 10, color: C.txtSec, marginTop: 3, fontFamily: font, lineHeight: 1.5 }}>Актуальный номер нужен для<br/>записей и напоминаний</div>
+            </div>
+            <div style={{ background: C.bg, borderRadius: 11, padding: "9px 0", marginBottom: 14, textAlign: "center", fontSize: 15, fontWeight: 800, letterSpacing: 1.5, fontFamily: font, color: C.txtSec }}>
+              +7 707 ****-**-54
+            </div>
+            <div style={{ fontSize: 10, color: C.txtSec, fontFamily: font, marginBottom: 8, fontWeight: 600 }}>Актуальный номер:</div>
+            <div style={{ textAlign: "center", background: C.bg, borderRadius: 11, padding: "11px 14px", marginBottom: 14, fontSize: 15, fontWeight: 800, letterSpacing: 1, fontFamily: font, color: ph.length ? C.txt : C.txtMuted, border: `1.5px solid ${ph.length >= 10 ? C.pri : C.border}`, transition: "border-color .2s" }}>
+              {fmtPhone(ph)}
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              <NP value={ph} onChange={setPh} max={10} onSubmit={submit}/>
+            </div>
+            <B f onClick={submit} style={{ width: "100%", opacity: ph.length >= 10 ? 1 : .4 }}>Отправить на проверку</B>
+            <div style={{ textAlign: "center", marginTop: 9 }}>
+              <button onClick={() => { setOpen(false); onClose(); }} style={{ background: "none", border: "none", color: C.txtMuted, fontSize: 10, cursor: "pointer", fontFamily: font }}>Пропустить</button>
+            </div>
+          </div>
+        </Md>
+      )}
+    </>
+  );
+};
+
+/* ═══ SCREENS ═══ */
+const Welcome = ({ onStart }) => (
+  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 28, textAlign: "center", background: C.gradSoft }}>
+    <div className="fi" style={{ animationDelay: ".1s" }}>
+      <div style={{ color: C.pri, fontSize: 14, fontWeight: 700, letterSpacing: .8, lineHeight: 1.5, textTransform: "uppercase", fontFamily: font }}>Өзіне-өзі қызмет<br/>көрсету терминалы</div>
+      <div style={{ color: C.txt, fontSize: 16, fontWeight: 800, lineHeight: 1.4, marginTop: 6, fontFamily: font }}>Терминал самообслуживания</div>
+    </div>
+    <div className="fi" style={{ animationDelay: ".3s", marginTop: 24 }}><Avatar size={140}/></div>
+    <div className="fi" style={{ animationDelay: ".5s", marginTop: 28 }}>
+      <button className="kb" onClick={onStart} style={{ padding: "15px 52px", borderRadius: 28, background: C.grad, color: "#fff", border: "none", fontSize: 16, fontWeight: 800, cursor: "pointer", fontFamily: font, boxShadow: `0 6px 24px ${C.priGlow}`, animation: "pulse 2.5s infinite" }}>Бастау | Начать</button>
+    </div>
+  </div>
+);
+
+const LangSel = ({ onSel }) => (
+  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: 28, textAlign: "center", background: C.white }}>
+    <div className="fi"><div style={{ color: C.pri, fontSize: 15, fontWeight: 700, fontFamily: font }}>Емханаға қош келдіңіздер</div><div style={{ color: C.txt, fontSize: 15, fontWeight: 700, marginTop: 4, fontFamily: font }}>Добро пожаловать в поликлинику</div></div>
+    <div className="fi" style={{ animationDelay: ".2s", marginTop: 22 }}><Avatar size={120}/></div>
+    <div className="fi" style={{ animationDelay: ".35s", color: C.txtSec, fontSize: 12, marginTop: 20, fontFamily: font }}>Тілді таңдаңыз | Выберите язык</div>
+    <div className="fi" style={{ animationDelay: ".45s", display: "flex", gap: 10, marginTop: 10 }}>
+      <B f onClick={() => onSel("kz")} style={{ padding: "11px 32px", fontSize: 14 }}>Қазақ</B>
+      <B f onClick={() => onSel("ru")} style={{ padding: "11px 32px", fontSize: 14 }}>Русский</B>
+    </div>
+  </div>
+);
+
+const Menu = ({ onNav, lang, onLang, mods = {} }) => {
+  const items = [
+    { k: "apt",   bg: C.priL,    ic: C.pri,     d: .07, n: mods.cab ? "Приём и кабинет" : "Запись на приём",   sub: mods.cab ? "Запись + кабинет" : "Выбор врача и времени", tag: mods.cab ? "+ КАБИНЕТ" : null },
+    { k: "info",  bg: C.blueL,   ic: C.blue,    d: .12, n: "Справочная",              sub: "FAQ, расписание, навигация" },
+    { k: "osms",  bg: "#E1F5ED", ic: "#0CAF74", d: .17, n: "ОСМС",                    sub: "Статус страхования" },
+    mods.queue && { k: "queue",  bg: C.warnL,   ic: C.warn,    d: .22, n: "Электронная очередь", sub: "Взять талон" },
+    mods.asel  && { k: "asel",   bg: "#EDE9FE", ic: "#7C3AED", d: .27, n: "ИИ-ассистент Асель",  sub: "Умный помощник" },
+  ].filter(Boolean);
+  const ico = {
+    apt:   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="8" cy="14" r=".5" fill="currentColor"/><circle cx="12" cy="14" r=".5" fill="currentColor"/><circle cx="16" cy="14" r=".5" fill="currentColor"/><circle cx="8" cy="18" r=".5" fill="currentColor"/><circle cx="12" cy="18" r=".5" fill="currentColor"/></svg>,
+    info:  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><path d="M9 7h6M9 11h4"/></svg>,
+    osms:  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>,
+    queue: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="3"/><path d="M9 9h6M9 13h4M9 17h2"/></svg>,
+    asel:  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>,
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bgWarm, position: "relative" }}>
+      <SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 16px" }}>
+        <div className="fi" style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 6, marginBottom: 16 }}>
+          <Avatar size={68}/>
+          <div style={{ color: C.txt, fontSize: 15, fontWeight: 800, fontFamily: font, marginTop: 8 }}>Чем могу помочь?</div>
+          <div style={{ color: C.txtSec, fontSize: 10, marginTop: 2, fontFamily: font }}>Выберите нужную услугу</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {items.map(x => (
+            <div key={x.k} className="fi" style={{ animationDelay: `${x.d}s` }}>
+              <button className="kb" onClick={() => onNav(x.k)} style={{
+                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
+                padding: "14px 13px", borderRadius: 18, background: C.white,
+                border: `1.5px solid ${C.borderL}`, cursor: "pointer", fontFamily: font,
+                width: "100%", minHeight: 98, boxShadow: C.shadow, position: "relative",
+              }}>
+                {x.tag && <div style={{ position: "absolute", top: 8, right: 8, fontSize: 7, background: C.priL, color: C.pri, borderRadius: 5, padding: "2px 6px", fontWeight: 800, letterSpacing: .5 }}>{x.tag}</div>}
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: x.ic, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", boxShadow: `0 3px 10px ${x.ic}55` }}>
+                  {ico[x.k]}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 12, color: C.txt, lineHeight: 1.3 }}>{x.n}</div>
+                  <div style={{ fontSize: 10, color: C.txtSec, marginTop: 2, lineHeight: 1.3 }}>{x.sub}</div>
+                </div>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div></Sc>
+      <Bar lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ IIN INPUT (reusable) ═══ */
+const IINS = ({ title, sub, onOk, onBack, onHome, lang, onLang, demoBanner }) => {
+  const [v, setV] = useState("");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+      <SBar/><MiniAv/>
+      {demoBanner}
+      <Sc><div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 20px" }}>
+        <Head title={title} sub={sub}/>
+        <div className="fi" style={{ width: "100%", height: 58, borderRadius: 16, border: `2px solid ${v.length === 12 ? C.pri : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, letterSpacing: 5, marginTop: 16, background: C.bg, fontFamily: font, transition: "border-color .2s" }}>
+          {v || <span style={{ opacity: .2, fontSize: 13, fontWeight: 600, letterSpacing: 2 }}>Введите ИИН</span>}
+        </div>
+        <div style={{ marginTop: 14, width: "100%" }}><NP value={v} onChange={setV} onSubmit={() => v.length === 12 && onOk(v)}/></div>
+        <B f onClick={() => v.length === 12 && onOk(v)} style={{ marginTop: 12, opacity: v.length === 12 ? 1 : .4, width: "100%" }}>Далее</B>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 9 }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.txtMuted} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span style={{ color: C.txtMuted, fontSize: 9, fontFamily: font }}>Данные защищены и не передаются третьим лицам</span>
+        </div>
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ APPOINTMENT ═══ */
+const Depts = ({ iin, onSel, onBack, onHome, lang, onLang }) => (
+  <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+    <SBar/><MiniAv/>
+    <Sc><div style={{ padding: "4px 14px" }}>
+      <Head title="Запись на прием"><div style={{ fontSize: 12, fontWeight: 700, color: C.txt, marginTop: 2, fontFamily: font }}>ИИН: {iin} · Участок №3</div>
+        <B f onClick={() => onSel("Терапевт")} style={{ marginTop: 6, fontSize: 11 }}>Записаться к терапевту</B>
+      </Head>
+      <div style={{ fontWeight: 800, textAlign: "center", margin: "12px 0 8px", color: C.txt, fontFamily: font, fontSize: 14 }}>Отделения</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {DEPARTMENTS.map((d, i) => <St key={d.name} i={i}><LC onClick={() => onSel(d.name)}><span style={{ display:"flex", alignItems:"center", gap:8 }}><DeptIcon name={d.name} color="#fff"/>{d.name}</span><span style={{ opacity: .6 }}>→</span></LC></St>)}
+      </div>
+    </div></Sc>
+    <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+  </div>
+);
+
+const Docs = ({ iin, dept, onSel, onBack, onHome, lang, onLang }) => {
+  const [tab, setTab] = useState("osms");
+  const docs = DOCTORS.filter(d => d.spec === dept);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+      <SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}>
+        <Head title="Запись на прием"><div style={{ fontSize: 12, fontWeight: 700, color: C.txt, marginTop: 2, fontFamily: font }}>ИИН: {iin}</div></Head>
+        <div style={{ fontWeight: 800, textAlign: "center", margin: "8px 0 6px", fontSize: 14, fontFamily: font }}>{dept}</div>
+        <div style={{ display: "flex", borderRadius: 11, overflow: "hidden", border: `1.5px solid ${C.pri}`, marginBottom: 10 }}>
+          {["osms","paid"].map(t => <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "9px 0", background: tab === t ? C.grad : "#fff", color: tab === t ? "#fff" : C.pri, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: font }}>{t === "osms" ? "По ОСМС" : "Платная"}</button>)}
+        </div>
+        {docs.length > 0 ? docs.map(d => (
+          <IC key={d.id} style={{ marginBottom: 7 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+              <div><div style={{ fontWeight: 800, fontSize: 13, color: C.txt, fontFamily: font }}>{d.name}</div><div style={{ fontSize: 11, color: C.txtSec }}>{d.spec} · Каб.{d.room}</div><div style={{ fontSize: 10, color: C.txtMuted, marginTop: 3 }}>{d.days} {d.hours}</div>{d.days2 && <div style={{ fontSize: 10, color: C.txtMuted }}>{d.days2} {d.hours2}</div>}</div>
+              <B o onClick={() => onSel(d)} style={{ fontSize: 11, flexShrink: 0 }}>Записаться</B>
+            </div>
+          </IC>
+        )) : <IC><div style={{ textAlign: "center", color: C.txtSec, padding: 14, fontFamily: font }}>Врачи не найдены</div></IC>}
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+const CalMd = ({ doc, onOk, onX }) => {
+  const [day, setDay] = useState(new Date().getDate());
+  const [time, setTime] = useState(null);
+  const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate(), fd = (new Date(now.getFullYear(), now.getMonth(), 1).getDay()+6)%7;
+  const cells = Array(fd).fill(null).concat(Array.from({length: dim}, (_, i) => i+1));
+  return (
+    <Md onClose={onX}><div style={{ padding: 18 }}>
+      <div style={{ textAlign: "center", fontFamily: font }}><div style={{ fontWeight: 800, fontSize: 13, color: C.txt }}>{doc.name}</div><div style={{ fontSize: 10, color: C.txtSec }}>{doc.spec} / Каб.{doc.room}</div></div>
+      <div style={{ fontWeight: 800, fontSize: 12, textAlign: "center", margin: "10px 0 4px", fontFamily: font }}>Выберите день:</div>
+      <div style={{ textAlign: "center", color: C.pri, fontWeight: 700, fontSize: 11, marginBottom: 4, fontFamily: font, textTransform: "capitalize" }}>{now.toLocaleDateString("ru",{month:"long",year:"numeric"})}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, fontSize: 10, textAlign: "center" }}>
+        {["пн","вт","ср","чт","пт","сб","вс"].map(d => <div key={d} style={{ padding: 2, fontWeight: 700, color: C.txtMuted, fontFamily: font }}>{d}</div>)}
+        {cells.map((d, i) => {const p = d && d < now.getDate(), s = d === day; return <button key={i} onClick={() => d && !p && setDay(d)} style={{ padding: 4, borderRadius: 7, border: s ? `2px solid ${C.pri}` : "2px solid transparent", background: s ? C.priL : "transparent", color: !d || p ? C.border : C.txt, fontSize: 10, fontWeight: s ? 800 : 500, cursor: d && !p ? "pointer" : "default", fontFamily: font }}>{d || ""}</button>;})}
+      </div>
+      <div style={{ fontWeight: 800, fontSize: 12, textAlign: "center", margin: "12px 0 6px", fontFamily: font }}>Выберите время:</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center" }}>
+        {SLOTS.map(t => {const b = BOOKED.includes(t), s = time === t; return <button key={t} className="kb" onClick={() => !b && setTime(t)} style={{ padding: "6px 10px", borderRadius: 7, border: "none", background: b ? C.border : s ? C.warn : C.priL, color: b ? C.txtMuted : s ? "#fff" : C.pri, fontSize: 11, fontWeight: 700, cursor: b ? "default" : "pointer", fontFamily: font, opacity: b ? .4 : 1, textDecoration: b ? "line-through" : "none" }}>{t}</button>;})}
+      </div>
+      <B f onClick={() => time && onOk(day, time)} style={{ width: "100%", marginTop: 12, opacity: time ? 1 : .4 }}>Записаться</B>
+      <div style={{ textAlign: "center", marginTop: 6 }}><button onClick={onX} style={{ background: "none", border: "none", color: C.txtMuted, fontSize: 11, cursor: "pointer", fontFamily: font }}>Закрыть ✕</button></div>
+    </div></Md>
+  );
+};
+
+const ConfMd = ({ doc, day, time, onOk, onBack, onX }) => {
+  const now = new Date(), ds = `${day} ${now.toLocaleDateString("ru",{month:"long"})} ${now.getFullYear()}`;
+  return (
+    <Md onClose={onX}><div style={{ padding: 22 }}>
+      <div style={{ textAlign: "center", fontWeight: 800, fontSize: 14, marginBottom: 14, fontFamily: font, color: C.txt }}>Подтверждение записи</div>
+      {[["Пациент","Амандыков Алмаз"],["Приём",`${doc.name} (${doc.spec})`],["Дата и время",`${ds} в ${time}`],["Кабинет",`Каб. №${doc.room}`],["Учреждение","Городская поликлиника"]].map(([l,v]) => (
+        <div key={l} style={{ padding: "7px 0", borderBottom: `1px solid ${C.borderL}` }}><div style={{ fontSize: 9, color: C.txtMuted, textTransform: "uppercase", letterSpacing: .5, fontFamily: font }}>{l}</div><div style={{ fontSize: 13, fontWeight: 700, color: C.txt, fontFamily: font }}>{v}</div></div>
+      ))}
+      <div style={{ fontSize: 9, color: C.txtSec, textAlign: "center", marginTop: 8, fontFamily: font }}>Рекомендуем прибыть за 15 минут</div>
+      <B f onClick={onOk} style={{ width: "100%", marginTop: 12 }}>✓ Подтвердить</B>
+      <div style={{ display: "flex", gap: 6, marginTop: 7 }}><B o onClick={onBack} style={{ flex: 1 }}>← Назад</B><B d onClick={onX} style={{ flex: 1 }}>Закрыть</B></div>
+    </div></Md>
+  );
+};
+
+const Succ = ({ msg, onHome, onCab }) => (
+  <div className="fi" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", background: C.white, padding: 28, textAlign: "center" }}>
+    <div style={{ width: 72, height: 72, borderRadius: "50%", background: C.successL, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, marginBottom: 14 }}>✓</div>
+    <div style={{ color: C.success, fontSize: 20, fontWeight: 800, fontFamily: font }}>{msg}</div>
+    <div style={{ color: C.txtSec, fontSize: 12, marginTop: 6, fontFamily: font }}>Ваша запись подтверждена</div>
+    <div style={{ display: "flex", gap: 8, marginTop: 20, width: "100%", maxWidth: 260 }}>
+      {onCab && <B o onClick={onCab} style={{ flex: 1 }}>Мои записи</B>}
+      <B f onClick={onHome} style={{ flex: 1 }}>На главную</B>
+    </div>
+  </div>
+);
+
+/* ═══ OSMS CORNER ═══ */
+const OSMS = ({ onBack, onHome, lang, onLang }) => {
+  const [v, setV] = useState("menu");
+  const [iin, setIin] = useState("");
+  const [st, setSt] = useState(null);
+  const [ld, setLd] = useState(false);
+  const [oq, setOq] = useState(null);
+  const chk = () => { setLd(true); setTimeout(() => { setSt(Math.random() > .3 ? "ok" : "no"); setLd(false); }, 1200); };
+
+  if (v === "faq") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}><Head title="FAQ по ОСМС"/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 10 }}>
+          {OSMS_FAQ.map((x, i) => (<St key={i} i={i}><button className="kb" onClick={() => setOq(oq === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 12px", borderRadius: 11, background: oq === i ? C.priL : C.bg, border: `1px solid ${oq === i ? C.pri+"30" : C.borderL}`, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font, textAlign: "left", color: C.txt }}>{x.q}<span style={{ transform: oq === i ? "rotate(180deg)" : "", transition: ".2s", flexShrink: 0, marginLeft: 6 }}>▾</span></button>
+            {oq === i && <div className="fi" style={{ padding: "8px 12px", fontSize: 12, color: C.txtSec, lineHeight: 1.5, borderLeft: `3px solid ${C.pri}`, marginLeft: 6, marginTop: 1, fontFamily: font }}>{x.a}</div>}
+          </St>))}
+        </div>
+      </div></Sc>
+      <Bar onBack={() => setV("menu")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  if (v === "check") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 22px" }}>
+        <Head title="Проверка ОСМС"/>
+        {!st ? (<>
+          <div className="fi" style={{ width: "100%", height: 58, borderRadius: 16, border: `2px solid ${iin.length === 12 ? C.pri : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, letterSpacing: 5, marginTop: 16, background: C.bg, fontFamily: font, transition: "border-color .2s" }}>
+            {iin || <span style={{ opacity: .2, fontSize: 13, fontWeight: 600, letterSpacing: 2 }}>Введите ИИН</span>}
+          </div>
+          <div style={{ marginTop: 12, width: "100%" }}><NP value={iin} onChange={setIin} onSubmit={() => iin.length === 12 && chk()}/></div>
+          {ld && <div className="fi" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6, color: C.pri, fontWeight: 700, fontFamily: font, fontSize: 12 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="2.5" strokeLinecap="round" style={{ animation:"pulse 1s infinite" }}><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 2"/></svg> Проверяем...</div>}
+        </>) : st === "ok" ? (
+          <IC style={{ marginTop: 16, background: C.successL, border: `1px solid ${C.success}20`, width: "100%", textAlign: "center" }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:6 }}><div style={{ width:52, height:52, borderRadius:"50%", background:C.success, display:"flex", alignItems:"center", justifyContent:"center" }}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg></div></div>
+            <div style={{ color: C.success, fontSize: 16, fontWeight: 800, fontFamily: font }}>Застрахован</div>
+            <div style={{ color: C.txtSec, fontSize: 11, marginTop: 4, fontFamily: font }}>Статус ОСМС активен</div>
+            <B f onClick={() => { setSt(null); setIin(""); }} style={{ marginTop: 10 }}>Проверить другой</B>
+          </IC>
+        ) : (
+          <IC style={{ marginTop: 16, background: C.dangerL, border: `1px solid ${C.danger}20`, width: "100%", textAlign: "center" }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:6 }}><div style={{ width:52, height:52, borderRadius:"50%", background:C.danger, display:"flex", alignItems:"center", justifyContent:"center" }}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div>
+            <div style={{ color: C.danger, fontSize: 16, fontWeight: 800, fontFamily: font }}>Не застрахован</div>
+            <div style={{ color: C.txtSec, fontSize: 11, marginTop: 4, fontFamily: font }}>Период неоплаты: 3 мес. Обратитесь в ЦОН или egov.kz</div>
+            <B d onClick={() => { setSt(null); setIin(""); }} style={{ marginTop: 10 }}>Проверить другой</B>
+          </IC>
+        )}
+      </div></Sc>
+      <Bar onBack={() => { setV("menu"); setSt(null); setIin(""); }} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  const osmsCards = [
+    { v:"check", ic:C.pri,  d:.06, n:"Проверить статус", sub:"Введите ИИН",
+      svg:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg> },
+    { v:"faq",   ic:C.blue, d:.10, n:"FAQ по ОСМС",      sub:"Частые вопросы",
+      svg:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg> },
+  ];
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.bgWarm, position:"relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding:"4px 16px" }}>
+        <Head title="ОСМС" sub="Обязательное медстрахование"/>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:14 }}>
+          {osmsCards.map(x => (
+            <div key={x.v} className="fi" style={{ animationDelay:`${x.d}s` }}>
+              <button className="kb" onClick={() => setV(x.v)} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:10, padding:"14px 13px", borderRadius:18, background:C.white, border:`1.5px solid ${C.borderL}`, cursor:"pointer", fontFamily:font, width:"100%", minHeight:98, boxShadow:C.shadow }}>
+                <div style={{ width:44, height:44, borderRadius:13, background:x.ic, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 3px 10px ${x.ic}55` }}>
+                  {x.svg}
+                </div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:12, color:C.txt, lineHeight:1.3 }}>{x.n}</div>
+                  <div style={{ fontSize:10, color:C.txtSec, marginTop:2, lineHeight:1.3 }}>{x.sub}</div>
+                </div>
+              </button>
+            </div>
+          ))}
+        </div>
+        <IC style={{ marginTop:14 }}>
+          <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:C.priL, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <div style={{ fontSize:11, color:C.txtSec, lineHeight:1.6, fontFamily:font }}>
+              <strong style={{ color:C.txt }}>Что такое ОСМС?</strong><br/>
+              Обязательное социальное медицинское страхование обеспечивает доступ к медуслугам для всех граждан РК.
+            </div>
+          </div>
+        </IC>
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ INFO ═══ */
+const Info = ({ onBack, onHome, lang, onLang, mods = {} }) => {
+  const [v, setV] = useState("menu");
+  const [fc, setFc] = useState(null);
+  const [oq, setOq] = useState(null);
+  const [sf, setSf] = useState("all");
+  const [nf, setNf] = useState("all");
+  const [mapFloor, setMapFloor] = useState("1");
+  const [mapSrch, setMapSrch] = useState("");
+  const [navTab, setNavTab] = useState("nav");
+
+  if (v === "faqD" && fc) { const cat = CLINIC_FAQ.find(c => c.cat === fc); return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}><Head title={cat.cat}/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 10 }}>
+          {cat.items.map((x, i) => (<St key={i} i={i}><button className="kb" onClick={() => setOq(oq === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 12px", borderRadius: 11, background: oq === i ? C.priL : C.bg, border: `1px solid ${oq === i ? C.pri+"30" : C.borderL}`, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: font, textAlign: "left", color: C.txt }}>{x.q}<span style={{ transform: oq === i ? "rotate(180deg)" : "", transition: ".2s", flexShrink: 0, marginLeft: 6 }}>▾</span></button>
+            {oq === i && <div className="fi" style={{ padding: "8px 12px", fontSize: 12, color: C.txtSec, lineHeight: 1.5, borderLeft: `3px solid ${C.pri}`, marginLeft: 6, marginTop: 1, fontFamily: font }}>{x.a}</div>}</St>))}
+        </div>
+      </div></Sc>
+      <Bar onBack={() => { setV("faq"); setOq(null); }} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );}
+
+  if (v === "faq") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}><Head title="FAQ клиники"/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 12 }}>{CLINIC_FAQ.map((c, i) => <St key={c.cat} i={i}><LC onClick={() => { setFc(c.cat); setV("faqD"); }}><span style={{ display:"flex", alignItems:"center", gap:10 }}><div style={{ width:30, height:30, borderRadius:9, background:C.pri, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>{c.cat}</span><span style={{ opacity: .6 }}>›</span></LC></St>)}</div>
+      </div></Sc>
+      <Bar onBack={() => setV("menu")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  if (v === "sched") {
+    const DAY_A = ["пн","вт","ср","чт","пт","сб","вс"];
+    const parseDays = ds => {
+      if (!ds) return [];
+      const res = [];
+      if (ds.includes("–")) {
+        const parts = ds.split("–");
+        const a = DAY_A.indexOf(parts[0].trim()), b = DAY_A.indexOf(parts[1].trim());
+        if (a >= 0 && b >= 0) for (let i = a; i <= b; i++) res.push(i);
+      }
+      ds.split(",").forEach(d => { const i = DAY_A.indexOf(d.trim()); if (i >= 0 && !res.includes(i)) res.push(i); });
+      return res;
+    };
+    const specs = [...new Set(DOCTORS.map(d => d.spec))];
+    const fl = sf === "all" ? DOCTORS : DOCTORS.filter(d => d.spec === sf);
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.white, position:"relative" }}><SBar/><MiniAv/>
+        <Sc><div style={{ padding:"4px 14px" }}>
+          <Head title="Расписание" sub="Врачи и время приёма"/>
+          <div style={{ display:"flex", gap:6, overflowX:"auto", padding:"8px 0 2px", scrollbarWidth:"none" }}>
+            {["all",...specs].map(s => (
+              <button key={s} onClick={() => setSf(s)} style={{ flexShrink:0, padding:"5px 12px", borderRadius:20, border:"none", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:font, background:sf===s ? C.grad : C.bg, color:sf===s ? "#fff" : C.txtSec, transition:"background .15s" }}>
+                {s==="all" ? "Все специалисты" : s}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:8 }}>
+            {fl.map((d, i) => {
+              const days1 = parseDays(d.days), days2 = parseDays(d.days2 || "");
+              const worked = [...new Set([...days1,...days2])];
+              return (
+                <St key={d.id} i={i}>
+                  <div style={{ borderRadius:16, border:`1.5px solid ${C.borderL}`, overflow:"hidden", boxShadow:C.shadow, display:"flex" }}>
+                    <div style={{ width:4, background:C.grad, flexShrink:0 }}/>
+                    <div style={{ flex:1, padding:"12px 12px 10px", background:C.white }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                        <div>
+                          <div style={{ fontWeight:800, fontSize:13, color:C.txt, fontFamily:font }}>{d.name}</div>
+                          <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:2 }}>
+                            <DeptIcon name={d.spec} size={12} color={C.pri}/>
+                            <span style={{ fontSize:10, color:C.pri, fontWeight:600, fontFamily:font }}>{d.spec}</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign:"right", fontSize:10, color:C.txtSec, fontFamily:font, lineHeight:1.6 }}>
+                          <div>Каб. {d.room}</div><div>Эт. {d.floor}</div>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:3, marginTop:9 }}>
+                        {DAY_A.map((day, idx) => {
+                          const on = worked.includes(idx);
+                          return (
+                            <div key={idx} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                              <div style={{ fontSize:7, fontWeight:700, color:on ? C.pri : C.txtMuted, fontFamily:font }}>{day}</div>
+                              <div style={{ width:"100%", height:4, borderRadius:2, background:on ? C.pri : C.borderL }}/>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop:6, fontSize:10, color:C.txtSec, fontFamily:font, lineHeight:1.5 }}>
+                        {d.days} · {d.hours}{d.days2 && ` / ${d.days2} · ${d.hours2}`}
+                      </div>
+                      <button style={{ marginTop:8, padding:"5px 14px", borderRadius:10, border:"none", background:C.priL, color:C.pri, fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:font }}>
+                        Записаться →
+                      </button>
+                    </div>
+                  </div>
+                </St>
+              );
+            })}
+          </div>
+        </div></Sc>
+        <Bar onBack={() => setV("menu")} onHome={onHome} lang={lang} onLang={onLang}/>
+      </div>
+    );
+  }
+
+  if (v === "nav") {
+    const DEPT_CLR = {
+      "Регистратура": { bg:C.priL, ic:C.pri }, "Терапия": { bg:C.priL, ic:C.pri },
+      "Лаборатория": { bg:C.warnL, ic:C.warn }, "Инфекционное": { bg:C.blueL, ic:C.blue },
+      "Гинекология": { bg:"#FDF4FF", ic:"#9333EA" }, "Кардиология": { bg:C.dangerL, ic:C.danger },
+      "Хирургия": { bg:C.dangerL, ic:C.danger }, "Аптека": { bg:C.priL, ic:C.pri },
+      "Рентген / УЗИ": { bg:C.warnL, ic:C.warn },
+    };
+    const shownFloors = [...new Set(NAVIGATION.map(n => String(n.floor)))];
+    const avail = ["all",...shownFloors];
+    const fl = nf === "all" ? NAVIGATION : NAVIGATION.filter(n => String(n.floor) === nf);
+    const MFLOORS = ["Ц","1","2","3","4"];
+    const FDATA = {
+      "Ц": [
+        { id:"Р",   name:"Рентген",         x:8,   y:8,  w:96,  h:66, ic:C.warn,     bg:C.warnL    },
+        { id:"УЗИ", name:"УЗИ",             x:104, y:8,  w:52,  h:66, ic:C.warn,     bg:C.warnL    },
+        { id:"АРХ", name:"Архив",           x:176, y:8,  w:32,  h:66, ic:C.txtSec,   bg:C.bg       },
+        { id:"ЛЦ",  name:"Лаб. цоколь",    x:208, y:8,  w:64,  h:66, ic:C.warn,     bg:C.warnL    },
+        { id:"ТП",  name:"Техн.помещения",  x:8,   y:82, w:200, h:70, ic:C.txtMuted, bg:C.bg       },
+      ],
+      "1": [
+        { id:"101", name:"Регистратура",    x:8,   y:8,  w:96,  h:66, ic:C.pri,      bg:C.priL     },
+        { id:"102", name:"Терапия",         x:104, y:8,  w:52,  h:66, ic:C.pri,      bg:C.priL     },
+        { id:"103", name:"Каб. врача",      x:176, y:8,  w:32,  h:66, ic:C.txtSec,   bg:C.bg       },
+        { id:"АП",  name:"Аптека",          x:208, y:8,  w:64,  h:66, ic:C.pri,      bg:C.priL     },
+        { id:"121", name:"Инфекционное",    x:8,   y:82, w:86,  h:70, ic:C.blue,     bg:C.blueL    },
+        { id:"ВХ",  name:"Главный вход",    x:94,  y:82, w:114, h:70, ic:C.success,  bg:C.successL },
+      ],
+      "2": [
+        { id:"247", name:"Инфекционное",    x:8,   y:8,  w:148, h:66, ic:C.blue,     bg:C.blueL    },
+        { id:"210", name:"Каб. 210",        x:176, y:8,  w:32,  h:66, ic:C.txtSec,   bg:C.bg       },
+        { id:"2А",  name:"Проц.кабинет",   x:208, y:8,  w:64,  h:66, ic:C.success,  bg:C.successL },
+        { id:"P",   name:"Процедурная",     x:8,   y:82, w:86,  h:70, ic:C.success,  bg:C.successL },
+        { id:"М2",  name:"Пост мед.сестры", x:94, y:82, w:114, h:70, ic:C.txtSec,   bg:C.bg       },
+      ],
+      "3": [
+        { id:"301", name:"Гинекология",     x:8,   y:8,  w:96,  h:66, ic:"#9333EA",  bg:"#FDF4FF"  },
+        { id:"310", name:"Кардиология",     x:104, y:8,  w:52,  h:66, ic:C.danger,   bg:C.dangerL  },
+        { id:"3Б",  name:"Каб. 3Б",        x:176, y:8,  w:32,  h:66, ic:"#9333EA",  bg:"#FDF4FF"  },
+        { id:"3А",  name:"Лаб. 3 эт.",     x:208, y:8,  w:64,  h:66, ic:C.warn,     bg:C.warnL    },
+        { id:"315", name:"Процедурная",     x:8,   y:82, w:86,  h:70, ic:C.txtSec,   bg:C.bg       },
+        { id:"М3",  name:"Пост",            x:94,  y:82, w:114, h:70, ic:"#9333EA",  bg:"#FDF4FF"  },
+      ],
+      "4": [
+        { id:"410", name:"Хирургия",        x:8,   y:8,  w:96,  h:66, ic:C.danger,   bg:C.dangerL  },
+        { id:"ОП",  name:"Операционная",    x:104, y:8,  w:52,  h:66, ic:C.danger,   bg:C.dangerL  },
+        { id:"ПА",  name:"Предоперац.",     x:176, y:8,  w:32,  h:66, ic:C.danger,   bg:C.dangerL  },
+        { id:"418", name:"Стерилизация",    x:208, y:8,  w:64,  h:66, ic:C.warn,     bg:C.warnL    },
+        { id:"419", name:"Перевязочная",    x:8,   y:82, w:86,  h:70, ic:C.danger,   bg:C.dangerL  },
+        { id:"420", name:"Реанимация",      x:94,  y:82, w:114, h:70, ic:C.danger,   bg:C.dangerL  },
+      ],
+    };
+    const ALL_ROOMS = Object.entries(FDATA).flatMap(([fll,rs]) => rs.map(r => ({ ...r, floor:fll })));
+    const q = mapSrch.toLowerCase();
+    const allMatches = q ? ALL_ROOMS.filter(r => r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)) : [];
+    const hlSet = new Set(allMatches.map(r => r.id + r.floor));
+    const mapRooms = FDATA[mapFloor] || [];
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100%", background:C.white, position:"relative" }}><SBar/><MiniAv/>
+        <Sc><div style={{ padding:"4px 14px" }}>
+          <Head title="Навигация" sub="Кабинеты, этажи и схема"/>
+          <div style={{ display:"flex", gap:0, marginTop:8, background:C.bg, borderRadius:12, padding:4 }}>
+            <button onClick={() => setNavTab("nav")} style={{ flex:1, padding:"7px 0", borderRadius:9, border:"none", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:font, background:navTab==="nav" ? C.white : "transparent", color:navTab==="nav" ? C.pri : C.txtSec, boxShadow:navTab==="nav" ? "0 1px 4px rgba(0,0,0,0.08)" : "none", transition:"all .15s" }}>
+              Навигация
+            </button>
+            <button onClick={() => setNavTab("map")} style={{ flex:1, padding:"7px 0", borderRadius:9, border:"none", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:font, background:navTab==="map" ? C.white : "transparent", color:navTab==="map" ? (mods.map ? C.pri : C.warn) : C.txtSec, boxShadow:navTab==="map" ? "0 1px 4px rgba(0,0,0,0.08)" : "none", transition:"all .15s", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+              {!mods.map && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+              Карта
+            </button>
+          </div>
+          {navTab === "nav" && (
+            <>
+              <div style={{ display:"flex", gap:0, marginTop:8, background:C.bg, borderRadius:12, padding:4 }}>
+                {avail.map(f => (
+                  <button key={f} onClick={() => setNf(f)} style={{ flex:1, padding:"7px 0", borderRadius:9, border:"none", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:font, background:nf===f ? C.white : "transparent", color:nf===f ? C.pri : C.txtSec, boxShadow:nf===f ? "0 1px 4px rgba(0,0,0,0.08)" : "none", transition:"all .15s" }}>
+                    {f === "all" ? "Все" : `Эт.${f}`}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:10 }}>
+                {fl.map((n, i) => {
+                  const clr = DEPT_CLR[n.dept] || { bg:C.priL, ic:C.pri };
+                  return (
+                    <St key={i} i={i}>
+                      <div style={{ background:C.white, borderRadius:14, border:`1.5px solid ${C.borderL}`, overflow:"hidden", boxShadow:C.shadow, display:"flex" }}>
+                        <div style={{ width:4, background:clr.ic, flexShrink:0 }}/>
+                        <div style={{ flex:1, padding:"11px 12px", display:"flex", alignItems:"center", gap:10 }}>
+                          <div style={{ width:38, height:38, borderRadius:11, background:clr.ic, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 2px 8px ${clr.ic}44` }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:800, fontSize:13, color:C.txt, fontFamily:font }}>{n.dept}</div>
+                            <div style={{ fontSize:11, color:C.txtSec, marginTop:1, fontFamily:font }}>Каб. {n.room} · Эт.{n.floor}</div>
+                            {n.note && (
+                              <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:3 }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                                <span style={{ fontSize:10, color:C.warn, fontWeight:600, fontFamily:font }}>{n.note}</span>
+                              </div>
+                            )}
+                          </div>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                        </div>
+                      </div>
+                    </St>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:12, display:"flex", gap:10, flexWrap:"wrap", paddingBottom:4 }}>
+                {[[C.pri,"Первичная"],[C.blue,"Специалисты"],[C.danger,"Хирургия"],[C.warn,"Диагностика"]].map(([color,label]) => (
+                  <div key={label} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:2, background:color }}/>
+                    <span style={{ fontSize:9, color:C.txtSec, fontFamily:font }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {navTab === "map" && !mods.map && (
+            <div style={{ marginTop:16, borderRadius:16, border:`1.5px dashed ${C.warn}70`, padding:"28px 16px", display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center", gap:10, background:C.warnL }}>
+              <div style={{ width:52, height:52, borderRadius:16, background:"#FFF8E7", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </div>
+              <div style={{ fontSize:13, fontWeight:800, color:C.txt, fontFamily:font }}>Карта клиники</div>
+              <div style={{ fontSize:11, color:C.txtSec, lineHeight:1.5, fontFamily:font }}>Интерактивная схема этажей доступна как платный модуль. Подключите в настройках системы.</div>
+              <div style={{ fontSize:10, color:C.warn, fontWeight:800, letterSpacing:.4, fontFamily:font }}>ПЛАТНЫЙ МОДУЛЬ</div>
+            </div>
+          )}
+          {navTab === "map" && mods.map && (
+            <>
+              <div style={{ position:"relative", marginTop:10 }}>
+                <svg style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.txtMuted} strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input value={mapSrch} onChange={e => setMapSrch(e.target.value)} placeholder="Поиск кабинета или отделения..." style={{ width:"100%", padding:"9px 30px", borderRadius:11, border:`1.5px solid ${mapSrch ? C.pri : C.border}`, fontSize:11, fontFamily:font, outline:"none", boxSizing:"border-box", color:C.txt, background:C.bg, transition:"border .15s" }}/>
+                {mapSrch && <button onClick={() => setMapSrch("")} style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:C.txtMuted, fontSize:14, padding:2 }}>✕</button>}
+              </div>
+              <div style={{ display:"flex", gap:4, marginTop:10 }}>
+                {MFLOORS.map(f => (
+                  <button key={f} onClick={() => setMapFloor(f)} style={{ flex:1, padding:"7px 0", borderRadius:10, border:`1.5px solid ${mapFloor===f ? C.pri : C.borderL}`, fontSize:f==="Ц"?9:11, fontWeight:800, cursor:"pointer", fontFamily:font, background:mapFloor===f ? C.priL : C.white, color:mapFloor===f ? C.pri : C.txtSec, transition:"all .15s" }}>
+                    {f === "Ц" ? "Цоколь" : `Эт. ${f}`}
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginTop:10, borderRadius:14, overflow:"hidden", border:`1.5px solid ${C.borderL}` }}>
+                <svg width="100%" height="172" viewBox="0 0 280 163" fill="none">
+                  <defs>
+                    <pattern id="stH" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
+                      <line x1="0" y1="6" x2="6" y2="0" stroke="#C0B4A8" strokeWidth="0.9"/>
+                    </pattern>
+                    <filter id="bsh" x="-10%" y="-10%" width="120%" height="120%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#00000018"/>
+                    </filter>
+                  </defs>
+                  <rect width="280" height="163" fill="#EDE8E3"/>
+                  <path d="M 8 8 L 272 8 L 272 90 L 208 90 L 208 152 L 8 152 Z" fill="#F4F0EC" filter="url(#bsh)"/>
+                  <rect x="8" y="74" width="264" height="8" fill="#E0D8D0"/>
+                  {mapRooms.map(r => {
+                    const key = r.id + mapFloor;
+                    const hit = q.length > 0 && hlSet.has(key);
+                    const dimmed = q.length > 0 && !hlSet.has(key);
+                    return (
+                      <g key={r.id} opacity={dimmed ? 0.2 : 1}>
+                        <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={r.bg}/>
+                        <rect x={r.x} y={r.y} width="3.5" height={r.h} fill={r.ic} opacity="0.6"/>
+                        {hit && <rect x={r.x+1} y={r.y+1} width={r.w-2} height={r.h-2} fill="none" stroke={r.ic} strokeWidth="2"/>}
+                        <line x1={r.x+r.w} y1={r.y} x2={r.x+r.w} y2={r.y+r.h} stroke="#C4BAB2" strokeWidth="0.8"/>
+                        <line x1={r.x} y1={r.y+r.h} x2={r.x+r.w} y2={r.y+r.h} stroke="#C4BAB2" strokeWidth="0.8"/>
+                        <text x={r.x+r.w/2+1.5} y={r.y+r.h/2-4} textAnchor="middle" fontSize="6" fill={r.ic} fontWeight="800" fontFamily="sans-serif">{r.id}</text>
+                        <text x={r.x+r.w/2+1.5} y={r.y+r.h/2+6} textAnchor="middle" fontSize="4.5" fill={r.ic} fontFamily="sans-serif" opacity="0.85">{r.name.length>15?r.name.slice(0,14)+"…":r.name}</text>
+                      </g>
+                    );
+                  })}
+                  <rect x="8" y="8" width="26" height="36" fill="url(#stH)"/>
+                  <rect x="8" y="8" width="26" height="36" fill="none" stroke="#B0A090" strokeWidth="0.7"/>
+                  <text x="21" y="50" textAnchor="middle" fontSize="4.5" fill="#9E8E7E" fontFamily="sans-serif">ЛСТ</text>
+                  <rect x="156" y="74" width="18" height="8" rx="1" fill="#C4B8AC" stroke="#9E8E78" strokeWidth="0.7"/>
+                  <text x="165" y="80.5" textAnchor="middle" fontSize="4.5" fill="#4A3A2A" fontFamily="sans-serif">▲▼</text>
+                  <path d="M 8 8 L 272 8 L 272 90 L 208 90 L 208 152 L 8 152 Z" fill="none" stroke="#4A3A2A" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
+                  <circle cx="208" cy="90" r="3.5" fill="#4A3A2A"/>
+                  {mapFloor === "1" && (
+                    <g>
+                      <circle cx="148" cy="117" r="5" fill={C.pri} opacity="0.9"/>
+                      <circle cx="148" cy="117" r="9" fill="none" stroke={C.pri} strokeWidth="1.2" opacity="0.45"/>
+                      <circle cx="148" cy="117" r="14" fill="none" stroke={C.pri} strokeWidth="0.7" opacity="0.2"/>
+                      <text x="163" y="120.5" fontSize="5.5" fill={C.pri} fontWeight="800" fontFamily="sans-serif">Вы здесь</text>
+                    </g>
+                  )}
+                </svg>
+              </div>
+              {mapSrch && allMatches.length > 0 && (
+                <div className="fi" style={{ marginTop:8, display:"flex", flexDirection:"column", gap:5 }}>
+                  <div style={{ fontSize:9, color:C.txtMuted, fontWeight:700, fontFamily:font, textTransform:"uppercase", letterSpacing:.8, marginBottom:2 }}>Результаты поиска</div>
+                  {allMatches.map((r,i) => (
+                    <button key={i} onClick={() => { setMapFloor(r.floor); setMapSrch(r.name); }} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:10, border:`1.5px solid ${r.bg}`, background:r.bg, cursor:"pointer", fontFamily:font, textAlign:"left", width:"100%" }}>
+                      <div style={{ width:30, height:30, borderRadius:8, background:"rgba(255,255,255,0.75)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:r.ic, flexShrink:0 }}>{r.id}</div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:700, color:C.txt }}>{r.name}</div>
+                        <div style={{ fontSize:9, color:C.txtSec }}>Этаж {r.floor === "Ц" ? "Цоколь" : r.floor}</div>
+                      </div>
+                      <svg style={{ marginLeft:"auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={r.ic} strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mapSrch && allMatches.length === 0 && (
+                <div style={{ textAlign:"center", color:C.txtSec, fontSize:11, fontFamily:font, padding:"14px 0" }}>Ничего не найдено</div>
+              )}
+              <div style={{ marginTop:10, display:"flex", gap:10, flexWrap:"wrap", paddingBottom:4 }}>
+                {[[C.pri,"Первичная"],[C.blue,"Инфекц."],[C.danger,"Хирургия"],[C.warn,"Диагностика"],[C.success,"Процедурные"],["#9333EA","Гинекол."]].map(([color,label]) => (
+                  <div key={label} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:2, background:color }}/>
+                    <span style={{ fontSize:9, color:C.txtSec, fontFamily:font }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div></Sc>
+        <Bar onBack={() => setV("menu")} onHome={onHome} lang={lang} onLang={onLang}/>
+      </div>
+    );
+  }
+
+  if (v === "npa") return <NPA onBack={() => setV("menu")} onHome={onHome} lang={lang} onLang={onLang}/>;
+
+  const infoCards = [
+    { v: "faq",   bg: C.blueL,   ic: C.blue,    d: .06, n: "FAQ клиники",     sub: "Часто задаваемые вопросы",
+      svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg> },
+    { v: "sched", bg: C.warnL,   ic: C.warn,    d: .10, n: "Расписание",      sub: "Врачи и время приёма",
+      svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+    { v: "nav",   bg: C.priL,    ic: C.pri,     d: .14, n: "Навигация",       sub: "Кабинеты, этажи · Карта",
+      svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg> },
+    { v: "npa",   bg: "#EFF6FF", ic: C.blue,    d: .18, n: "НПА",             sub: "Приказы МЗ РК",
+      svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bgWarm, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 16px" }}>
+        <div className="fi" style={{ marginBottom: 14 }}>
+          <Head title="Справочная" sub="Полезная информация о клинике"/>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {infoCards.map(x => (
+            <div key={x.v} className="fi" style={{ animationDelay: `${x.d}s` }}>
+              <button className="kb" onClick={() => !x.paid && setV(x.v)} style={{
+                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10,
+                padding: "14px 13px", borderRadius: 18, background: C.white,
+                border: `1.5px solid ${x.paid ? C.borderL : C.borderL}`, cursor: x.paid ? "default" : "pointer",
+                fontFamily: font, width: "100%", minHeight: 98, boxShadow: C.shadow,
+                position: "relative", opacity: x.paid ? 0.65 : 1,
+              }}>
+                {x.paid && <div style={{ position: "absolute", top: 8, right: 8, display:"flex", alignItems:"center", gap:3, background: C.warnL, borderRadius: 5, padding: "2px 7px" }}>
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                  <span style={{ fontSize: 7, color: C.warn, fontWeight: 800, letterSpacing: .4 }}>ПЛАТНЫЙ</span>
+                </div>}
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: x.paid ? C.bg : x.ic, display: "flex", alignItems: "center", justifyContent: "center", color: x.paid ? C.txtMuted : "#fff", boxShadow: x.paid ? "none" : `0 3px 10px ${x.ic}55` }}>
+                  {x.svg}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 12, color: C.txt, lineHeight: 1.3 }}>{x.n}</div>
+                  <div style={{ fontSize: 10, color: C.txtSec, marginTop: 2, lineHeight: 1.3 }}>{x.sub}</div>
+                </div>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ НПА ═══ */
+const NPA = ({ onBack, onHome, lang, onLang }) => {
+  const [s, setS] = useState("");
+  const fl = NPA_DOCS.filter(d => !s || d.title.toLowerCase().includes(s.toLowerCase()) || d.num.includes(s));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}><Head title="НПА документы" sub="Приказы МЗ РК"/>
+        <input value={s} onChange={e => setS(e.target.value)} placeholder="🔍 Поиск..." style={{ width: "100%", padding: "9px 12px", borderRadius: 11, border: `1.5px solid ${C.border}`, fontSize: 12, fontFamily: font, outline: "none", boxSizing: "border-box", marginTop: 10 }}/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
+          {fl.map((d, i) => <St key={i} i={i}><IC>
+            <div style={{ display: "flex", gap: 10, alignItems: "start" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: C.blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg></div>
+              <div><div style={{ fontWeight: 800, fontSize: 12, color: C.blue, fontFamily: font }}>{d.num}</div><div style={{ fontSize: 11, color: C.txt, marginTop: 1, lineHeight: 1.3, fontFamily: font }}>{d.title}</div><div style={{ fontSize: 9, color: C.txtMuted, marginTop: 2 }}>от {d.date}</div></div>
+            </div>
+          </IC></St>)}
+        </div>
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ QUEUE ═══ */
+const Queue = ({ onBack, onHome, lang, onLang }) => {
+  const [step, setStep] = useState("iin");
+  const [ticket, setTicket] = useState(null);
+  const take = (svc) => { setTicket({ svc: svc.name, num: `${svc.prefix}-${String(Math.floor(Math.random()*80)+1).padStart(3,"0")}`, ahead: Math.floor(Math.random()*8) }); setStep("ticket"); };
+
+  if (step === "iin") return <IINS title="Электронная очередь" sub="Введите ИИН" onOk={() => setStep("sel")} onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>;
+
+  if (step === "sel") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "8px 14px" }}><Head title="Выберите услугу"/>
+        {(() => {
+          const QICO = {
+            reg:   { ic: C.pri,      bg: C.priL,    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M9 7h6M9 11h6M9 15h4"/><circle cx="15.5" cy="15.5" r="0" fill="none"/></svg> },
+            lab:   { ic: C.warn,     bg: C.warnL,   svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M9 3v6L4 19a1 1 0 00.9 1.4h14.2A1 1 0 0020 19L15 9V3"/><path d="M6 14h12"/></svg> },
+            pharm: { ic: C.blue,     bg: C.blueL,   svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L6.5 11h11L12 2z"/><rect x="4" y="13" width="16" height="9" rx="2"/><path d="M12 15v5M9.5 17.5h5"/></svg> },
+            pre:   { ic: "#9333EA",  bg: "#F5F3FF", svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="6" r="3"/><path d="M12 9v3"/><path d="M8 12c0 0-2 1.5-2 4s2 4 2 4M16 12c0 0 2 1.5 2 4s-2 4-2 4"/><path d="M8 20h8"/><circle cx="12" cy="9" r="0"/><path d="M9 15h6"/></svg> },
+          };
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 16 }}>
+              {QUEUE_SERVICES.map((svc, i) => {
+                const q = QICO[svc.id] || QICO.reg;
+                return (
+                  <St key={svc.id} i={i}>
+                    <button className="kb" onClick={() => take(svc)} style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 14px", borderRadius:16, background:C.white, border:`1.5px solid ${C.borderL}`, cursor:"pointer", fontFamily:font, width:"100%", textAlign:"left", boxShadow:C.shadow }}>
+                      <div style={{ width:48, height:48, borderRadius:14, background:q.ic, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, boxShadow:`0 3px 10px ${q.ic}44` }}>
+                        {q.svg}
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:800, fontSize:14, color:C.txt }}>{svc.name}</div>
+                        <div style={{ fontSize:10, color:C.txtSec, marginTop:2 }}>Получить талон · Префикс <strong>{svc.prefix}</strong></div>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                  </St>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div></Sc>
+      <Bar onBack={() => setStep("iin")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  return (
+    <div className="fi" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", background: C.gradSoft, padding: 28, textAlign: "center" }}>
+      <div style={{ width: 80, height: 80, borderRadius: 24, background: C.white, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 8px 32px ${C.priGlow}`, marginBottom: 4 }}>
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 9V7a2 2 0 012-2h16a2 2 0 012 2v2"/><path d="M2 9h20v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9z"/>
+          <path d="M6 13h12M6 17h8"/><circle cx="18" cy="17" r="0.5" fill={C.pri}/>
+        </svg>
+      </div>
+      <div style={{ fontWeight: 800, fontSize: 12, color: C.txtSec, fontFamily: font, textTransform: "uppercase", letterSpacing: 1, marginTop: 6 }}>{ticket.svc}</div>
+      <div style={{ fontSize: 54, fontWeight: 900, color: C.pri, fontFamily: font, margin: "10px 0 4px", letterSpacing: 2, textShadow: `0 2px 12px ${C.priGlow}` }}>{ticket.num}</div>
+      <IC><div style={{ fontSize: 12, color: C.txtSec, fontFamily: font }}>Впереди: <strong style={{ color: C.txt, fontSize: 16 }}>{ticket.ahead}</strong> чел.</div></IC>
+      <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 5, color: C.txtMuted, fontSize: 10, fontFamily: font }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.txtMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Талон отправлен на печать
+      </div>
+      <B f onClick={onHome} style={{ marginTop: 20 }}>На главную</B>
+    </div>
+  );
+};
+
+/* ═══ CABINET ═══ */
+const Cab = ({ onBack, onHome, lang, onLang }) => {
+  const [step, setStep] = useState("iin");
+  const [iin, setIin] = useState("");
+  const [otp, setOtp] = useState("");
+  const [tab, setTab] = useState("up");
+  const [del, setDel] = useState(null);
+  const [apts, setApts] = useState(MY_APPOINTMENTS);
+
+  if (step === "iin") return <IINS title="Личный кабинет" sub="Введите ИИН" onOk={v => { setIin(v); setStep("otp"); }} onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>;
+
+  if (step === "otp") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 22px" }}>
+        <Head title="Подтверждение" sub="Код отправлен в WhatsApp на ваш номер"/>
+        <div className="fi" style={{ background: C.priL, borderRadius: 10, padding: "7px 18px", marginTop: 10, fontSize: 13, fontWeight: 700, color: C.pri, fontFamily: font, letterSpacing: 0.5 }}>+7 707 *** ** 54</div>
+        <div style={{ fontSize: 9, color: C.txtMuted, marginTop: 6, marginBottom: 4, fontFamily: font }}>Введите 4-значный код</div>
+        <div style={{ marginTop: 4 }}><OtpBlocks v={otp}/></div>
+        <div style={{ marginTop: 12, width: "100%" }}><NP value={otp} onChange={setOtp} max={4} onSubmit={() => otp.length === 4 && setStep("main")}/></div>
+        <B f onClick={() => otp.length === 4 && setStep("main")} style={{ marginTop: 10, width: "100%", maxWidth: 272, opacity: otp.length === 4 ? 1 : .4 }}>Войти</B>
+        <button style={{ background: "none", border: "none", color: C.txtMuted, fontSize: 10, cursor: "pointer", marginTop: 6, fontFamily: font }}>Отправить повторно (SMS ~16 тг)</button>
+      </div></Sc>
+      <Bar onBack={() => { setStep("iin"); setOtp(""); }} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}><SBar/><MiniAv/>
+      <Sc><div style={{ padding: "4px 14px" }}>
+        <Head title="Личный кабинет"><div style={{ fontSize: 12, fontWeight: 700, color: C.txt, marginTop: 2, fontFamily: font }}>Амандыков Алмаз · ИИН: {iin}</div></Head>
+        <div style={{ display: "flex", borderRadius: 11, overflow: "hidden", border: `1.5px solid ${C.pri}`, marginTop: 10 }}>
+          {[["up","Мои записи"],["hist","История"]].map(([k,l]) => <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: "9px 0", background: tab === k ? C.grad : "#fff", color: tab === k ? "#fff" : C.pri, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: font }}>{l}</button>)}
+        </div>
+        {tab === "up" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
+            {apts.length === 0 ? <IC style={{ textAlign: "center" }}><div style={{ color: C.txtSec, padding: 12, fontFamily: font }}>Нет записей</div></IC> : apts.map((a, i) => (
+              <St key={a.id} i={i}><IC>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                  <div><div style={{ fontWeight: 800, fontSize: 13, color: C.txt, fontFamily: font }}>{a.doctor}</div><div style={{ fontSize: 11, color: C.pri, fontWeight: 600 }}>{a.spec}</div><div style={{ fontSize: 11, color: C.txtSec, marginTop: 3 }}>📅 {a.date} в {a.time}</div><div style={{ fontSize: 10, color: C.txtSec }}>🏥 Каб.{a.room}</div></div>
+                  <B s d onClick={() => setDel(a.id)}>Отменить</B>
+                </div>
+              </IC></St>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
+            {HISTORY.map((h, i) => <St key={i} i={i}><IC>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                <div><div style={{ fontWeight: 800, fontSize: 12, color: C.txt, fontFamily: font }}>{h.doctor}</div><div style={{ fontSize: 10, color: C.txtSec }}>{h.spec} · {h.date}</div></div>
+                <div style={{ padding: "3px 8px", borderRadius: 7, background: h.status === "done" ? C.successL : C.dangerL, color: h.status === "done" ? C.success : C.danger, fontSize: 9, fontWeight: 700, fontFamily: font }}>{h.status === "done" ? "Завершён" : "Отменён"}</div>
+              </div>
+            </IC></St>)}
+          </div>
+        )}
+      </div></Sc>
+      {del && <Md onClose={() => setDel(null)}><div style={{ padding: 22, textAlign: "center" }}>
+        <div style={{ fontSize: 32 }}>⚠️</div>
+        <div style={{ fontWeight: 800, fontSize: 14, color: C.txt, fontFamily: font, marginTop: 6 }}>Отменить запись?</div>
+        <div style={{ fontSize: 11, color: C.txtSec, marginTop: 4 }}>Это действие нельзя отменить</div>
+        <div style={{ display: "flex", gap: 7, marginTop: 14 }}><B o onClick={() => setDel(null)} style={{ flex: 1 }}>Нет</B><B d onClick={() => { setApts(a => a.filter(x => x.id !== del)); setDel(null); }} style={{ flex: 1 }}>Да, отменить</B></div>
+      </div></Md>}
+      <Bar onBack={() => setStep("iin")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ APT HUB (Запись + Кабинет объединённые) ═══ */
+const AptHub = ({ iin, initialTab = "new", onBack, onHome, lang, onLang, onBooking }) => {
+  const fromSuccess = initialTab !== "new";
+  const [step, setStep] = useState(fromSuccess ? "tabs" : "otp");
+  const [otp, setOtp] = useState("");
+  const [tab, setTab] = useState(initialTab);
+  const [apts, setApts] = useState(MY_APPOINTMENTS);
+  const [del, setDel] = useState(null);
+
+  /* ── OTP ── */
+  if (step === "otp") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+      <SBar/><MiniAv/>
+      <Sc><div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 26px" }}>
+        <div className="fi" style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 14, marginBottom: 8 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 18, background: C.priL, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="3"/>
+              <path d="M9 7h6M9 11h4"/>
+              <circle cx="14.5" cy="16.5" r="1.5" fill={C.pri} stroke="none"/>
+            </svg>
+          </div>
+          <div style={{ color: C.txt, fontSize: 16, fontWeight: 800, fontFamily: font }}>Подтверждение входа</div>
+          <div style={{ color: C.txtSec, fontSize: 11, marginTop: 4, fontFamily: font, textAlign: "center", lineHeight: 1.5 }}>Введите код, отправленный<br/>в WhatsApp на номер</div>
+          <div style={{ background: C.priL, borderRadius: 10, padding: "6px 18px", marginTop: 8, fontSize: 13, fontWeight: 700, color: C.pri, fontFamily: font, letterSpacing: 0.5 }}>+7 707 *** ** 54</div>
+        </div>
+        <div style={{ marginTop: 8 }}><OtpBlocks v={otp}/></div>
+        <div style={{ marginTop: 12, width: "100%" }}><NP value={otp} onChange={setOtp} max={4} onSubmit={() => otp.length === 4 && setStep("hub")}/></div>
+        <B f onClick={() => otp.length === 4 && setStep("hub")} style={{ marginTop: 10, width: "100%", maxWidth: 272, opacity: otp.length === 4 ? 1 : .4 }}>Войти в кабинет</B>
+        <button style={{ background: "none", border: "none", color: C.txtMuted, fontSize: 10, cursor: "pointer", marginTop: 8, fontFamily: font }}>Отправить повторно (SMS ~16 тг)</button>
+      </div></Sc>
+      <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  /* ── HUB MENU ── */
+  if (step === "hub") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.bgWarm, position: "relative" }}>
+      <SBar/><MiniAv/>
+      <Sc><div style={{ padding: "6px 16px" }}>
+        {/* User card */}
+        <div className="fi" style={{ background: C.grad, borderRadius: 18, padding: "16px 18px", marginBottom: 16, display: "flex", alignItems: "center", gap: 14, boxShadow: `0 6px 20px ${C.priGlow}` }}>
+          <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(255,255,255,0.22)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+          </div>
+          <div>
+            <div style={{ color: "#fff", fontSize: 14, fontWeight: 800, fontFamily: font }}>Амандыков Алмаз</div>
+            <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 10, marginTop: 2, fontFamily: font }}>ИИН: {iin} · Участок №3</div>
+          </div>
+        </div>
+
+        {/* Primary action */}
+        <div className="fi" style={{ animationDelay: ".07s", marginBottom: 10 }}>
+          <button className="kb" onClick={() => { setTab("new"); setStep("tabs"); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "18px", borderRadius: 18, background: C.white, border: `1.5px solid ${C.borderL}`, cursor: "pointer", fontFamily: font, boxShadow: C.shadow }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: C.priL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="3"/>
+                <path d="M3 9h18M8 2v4M16 2v4M12 13v4M10 15h4"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: C.txt, lineHeight: 1.2 }}>Записаться на приём</div>
+              <div style={{ fontSize: 10, color: C.txtSec, marginTop: 3 }}>Выберите специалиста и удобное время</div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.border} strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        {/* Secondary 2-col */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="fi" style={{ animationDelay: ".13s" }}>
+            <button className="kb" onClick={() => { setTab("mine"); setStep("tabs"); }} style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, padding: "16px", borderRadius: 18, background: C.white, border: `1.5px solid ${C.borderL}`, cursor: "pointer", fontFamily: font, boxShadow: C.shadow }}>
+              <div style={{ width: 42, height: 42, borderRadius: 13, background: C.priL, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.pri} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                  <rect x="9" y="3" width="6" height="4" rx="1"/>
+                  <path d="M9 12h6M9 16h4"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: C.txt }}>Мои записи</div>
+                <div style={{ fontSize: 9, color: C.txtSec, marginTop: 2 }}>{apts.length} предстоящих</div>
+              </div>
+            </button>
+          </div>
+          <div className="fi" style={{ animationDelay: ".18s" }}>
+            <button className="kb" onClick={() => { setTab("hist"); setStep("tabs"); }} style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, padding: "16px", borderRadius: 18, background: C.white, border: `1.5px solid ${C.borderL}`, cursor: "pointer", fontFamily: font, boxShadow: C.shadow }}>
+              <div style={{ width: 42, height: 42, borderRadius: 13, background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.txtSec} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 3.5"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: C.txt }}>История</div>
+                <div style={{ fontSize: 9, color: C.txtSec, marginTop: 2 }}>Прошлые приёмы</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div></Sc>
+      <Bar onBack={() => setStep("otp")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+
+  /* ── TABS VIEW ── */
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+      <SBar/><MiniAv/>
+      <div style={{ padding: "8px 14px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <button onClick={() => setStep("hub")} style={{ width: 30, height: 30, borderRadius: 9, background: C.bg, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.txtSec} strokeWidth="2.2" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.txt, fontFamily: font }}>Амандыков Алмаз</div>
+            <div style={{ fontSize: 9, color: C.txtSec, fontFamily: font }}>ИИН: {iin} · Участок №3</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", borderRadius: 11, overflow: "hidden", border: `1.5px solid ${C.pri}` }}>
+          {[["new","Записаться"],["mine","Мои записи"],["hist","История"]].map(([k,l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: "9px 0", background: tab === k ? C.grad : "#fff", color: tab === k ? "#fff" : C.pri, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: font }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <Sc>
+        {tab === "new" && <div style={{ padding: "10px 14px 0" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {DEPARTMENTS.map((d, i) => <St key={d.name} i={i}><LC onClick={() => onBooking(d.name)}><span style={{ display:"flex", alignItems:"center", gap:8 }}><DeptIcon name={d.name} color="#fff"/>{d.name}</span><span style={{ opacity: .6 }}>→</span></LC></St>)}
+          </div>
+        </div>}
+        {tab === "mine" && <div style={{ padding: "10px 14px 0", display: "flex", flexDirection: "column", gap: 7 }}>
+          {apts.length === 0
+            ? <IC style={{ textAlign: "center" }}><div style={{ color: C.txtSec, padding: 12, fontFamily: font }}>Нет предстоящих записей</div></IC>
+            : apts.map((a, i) => <St key={a.id} i={i}><IC>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: C.txt, fontFamily: font }}>{a.doctor}</div>
+                    <div style={{ fontSize: 11, color: C.pri, fontWeight: 600 }}>{a.spec}</div>
+                    <div style={{ fontSize: 11, color: C.txtSec, marginTop: 3 }}>📅 {a.date} в {a.time}</div>
+                    <div style={{ fontSize: 10, color: C.txtSec }}>🏥 Каб.{a.room}</div>
+                  </div>
+                  <B s d onClick={() => setDel(a.id)}>Отменить</B>
+                </div>
+              </IC></St>)
+          }
+        </div>}
+        {tab === "hist" && <div style={{ padding: "10px 14px 0", display: "flex", flexDirection: "column", gap: 7 }}>
+          {HISTORY.map((h, i) => <St key={i} i={i}><IC>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: C.txt, fontFamily: font }}>{h.doctor}</div>
+                <div style={{ fontSize: 10, color: C.txtSec }}>{h.spec} · {h.date} в {h.time}</div>
+              </div>
+              <div style={{ padding: "3px 8px", borderRadius: 7, background: h.status === "done" ? C.successL : C.dangerL, color: h.status === "done" ? C.success : C.danger, fontSize: 9, fontWeight: 700, fontFamily: font }}>{h.status === "done" ? "Завершён" : "Отменён"}</div>
+            </div>
+          </IC></St>)}
+        </div>}
+      </Sc>
+      {del && <Md onClose={() => setDel(null)}><div style={{ padding: 22, textAlign: "center" }}>
+        <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.warnL, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="1.8" strokeLinecap="round"><path d="M12 9v5M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        </div>
+        <div style={{ fontWeight: 800, fontSize: 14, color: C.txt, fontFamily: font }}>Отменить запись?</div>
+        <div style={{ fontSize: 11, color: C.txtSec, marginTop: 4, fontFamily: font }}>Подтверждение придёт на ваш номер</div>
+        <div style={{ display: "flex", gap: 7, marginTop: 14 }}>
+          <B o onClick={() => setDel(null)} style={{ flex: 1 }}>Нет</B>
+          <B d onClick={() => { setApts(a => a.filter(x => x.id !== del)); setDel(null); }} style={{ flex: 1 }}>Отменить</B>
+        </div>
+      </div></Md>}
+      <Bar onBack={fromSuccess ? onBack : () => setStep("hub")} onHome={onHome} lang={lang} onLang={onLang}/>
+    </div>
+  );
+};
+
+/* ═══ ASEL SCREEN (roadmap placeholder) ═══ */
+const AselScreen = ({ onBack, onHome, lang, onLang }) => (
+  <div style={{ display: "flex", flexDirection: "column", height: "100%", background: C.white, position: "relative" }}>
+    <SBar/><MiniAv/>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 28, textAlign: "center" }}>
+      <div className="fi" style={{ marginBottom: 8 }}>
+        <div style={{ width: 90, height: 90, borderRadius: 28, background: C.priL, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`0 8px 32px ${C.priGlow}` }}>
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <rect x="10" y="15" width="36" height="28" rx="9" fill={C.pri}/>
+            <rect x="14" y="19" width="28" height="20" rx="6" fill={C.priL}/>
+            <circle cx="22" cy="27" r="3.5" fill={C.pri}/>
+            <circle cx="34" cy="27" r="3.5" fill={C.pri}/>
+            <circle cx="23" cy="26" r="1.2" fill="#fff"/>
+            <circle cx="35" cy="26" r="1.2" fill="#fff"/>
+            <path d="M22 34 Q28 38 34 34" stroke={C.pri} strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+            <line x1="28" y1="15" x2="28" y2="8" stroke={C.pri} strokeWidth="2" strokeLinecap="round"/>
+            <circle cx="28" cy="6.5" r="2.5" fill={C.pri}/>
+            <rect x="5" y="21" width="5" height="10" rx="2.5" fill={C.pri} opacity="0.4"/>
+            <rect x="46" y="21" width="5" height="10" rx="2.5" fill={C.pri} opacity="0.4"/>
+            <rect x="22" y="43" width="12" height="7" rx="3" fill={C.pri} opacity="0.35"/>
+          </svg>
+        </div>
+      </div>
+      <div className="fi" style={{ animationDelay: ".1s" }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.txt, fontFamily: font }}>Асель</div>
+        <div style={{ fontSize: 12, color: C.pri, fontWeight: 700, fontFamily: font, marginTop: 2 }}>ИИ-ассистент терминала</div>
+      </div>
+      <IC className="fi" style={{ marginTop: 20, textAlign: "left", animationDelay: ".2s" }}>
+        <div style={{ fontSize: 11, color: C.txtSec, lineHeight: 1.7, fontFamily: font }}>
+          <strong style={{ color: C.txt }}>Голосовой + чатовый ассистент</strong> для навигации по терминалу.<br/>
+          Помогает записаться, найти врача, ответить на вопросы о клинике на казахском и русском языках.
+        </div>
+      </IC>
+    </div>
+    <Bar onBack={onBack} onHome={onHome} lang={lang} onLang={onLang}/>
+  </div>
+);
+
+/* ═══ MAIN ═══ */
+function App() {
+  const [sc, setSc] = useState("welcome");
+  const [lang, setLang] = useState("ru");
+  const [iin, setIin] = useState("");
+  const [dept, setDept] = useState(null);
+  const [doc, setDoc] = useState(null);
+  const [md, setMd] = useState(null);
+  const [ad, setAd] = useState(null);
+  const [at, setAt] = useState(null);
+  const [ps, setPs] = useState(false);
+  const mods = { queue: true, cab: true, asel: true, map: true };
+  const [hubTab, setHubTab] = useState("new");
+
+  const home = useCallback(() => { setSc("menu"); setIin(""); setDept(null); setDoc(null); setMd(null); setPs(false); setHubTab("new"); }, []);
+  const tl = () => setLang(l => l === "ru" ? "kz" : "ru");
+
+  useEffect(() => {
+    if (sc === "welcome" || sc === "lang") return;
+    let t; const r = () => { clearTimeout(t); t = setTimeout(() => { setSc("welcome"); setIin(""); setDept(null); setDoc(null); setMd(null); }, 180000); };
+    r(); window.addEventListener("click", r); window.addEventListener("touchstart", r);
+    return () => { clearTimeout(t); window.removeEventListener("click", r); window.removeEventListener("touchstart", r); };
+  }, [sc]);
+
+  const iinOk = (v) => {
+    setIin(v);
+    setSc(mods.cab ? "apthub" : "depts");
+    if (!ps) setTimeout(() => setMd("phone"), 700);
+  };
+
+  const R = () => {
+    switch (sc) {
+      case "welcome": return <Welcome onStart={() => setSc("lang")}/>;
+      case "lang": return <LangSel onSel={l => { setLang(l); setSc("menu"); }}/>;
+      case "menu": return <Menu onNav={setSc} lang={lang} onLang={tl} mods={mods}/>;
+      case "apt": return <IINS title={mods.cab ? "Приём и кабинет" : "Запись на приём"} sub="Введите ИИН" onOk={iinOk} onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl}/>;
+      case "apthub": return (
+        <div style={{ position: "relative", height: "100%" }}>
+          <AptHub iin={iin} initialTab={hubTab} onBack={() => { setHubTab("new"); setSc("apt"); }} onHome={home} lang={lang} onLang={tl} onBooking={d => { setDept(d); setSc("docs"); }}/>
+          {md === "phone" && <PhoneBadge onClose={() => { setMd(null); setPs(true); }}/>}
+        </div>
+      );
+      case "depts": return (
+        <div style={{ position: "relative", height: "100%" }}>
+          <Depts iin={iin} onSel={d => { setDept(d); setSc("docs"); }} onBack={() => setSc("apt")} onHome={home} lang={lang} onLang={tl}/>
+          {md === "phone" && <PhoneBadge onClose={() => { setMd(null); setPs(true); }}/>}
+        </div>
+      );
+      case "docs": return (
+        <div style={{ position: "relative", height: "100%" }}>
+          <Docs iin={iin} dept={dept} onSel={d => { setDoc(d); setMd("cal"); }} onBack={() => setSc(mods.cab ? "apthub" : "depts")} onHome={home} lang={lang} onLang={tl}/>
+          {md === "cal" && <CalMd doc={doc} onOk={(d,t) => { setAd(d); setAt(t); setMd("conf"); }} onX={() => setMd(null)}/>}
+          {md === "conf" && <ConfMd doc={doc} day={ad} time={at} onOk={() => { setMd(null); setSc("succ"); }} onBack={() => setMd("cal")} onX={() => setMd(null)}/>}
+        </div>
+      );
+      case "succ": return <Succ msg="Записан!" onHome={home} onCab={mods.cab ? () => { setHubTab("mine"); setSc("apthub"); } : null}/>;
+      case "osms": return <OSMS onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl}/>;
+      case "info": return <Info onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl} mods={mods}/>;
+      case "npa": return <Info onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl} mods={mods}/>;
+      case "queue": return <Queue onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl}/>;
+      case "asel": return <AselScreen onBack={() => setSc("menu")} onHome={home} lang={lang} onLang={tl}/>;
+      default: return <Welcome onStart={() => setSc("lang")}/>;
+    }
+  };
+
+  return (
+    <><style>{css}</style>
+    <div style={{ width:"100vw", height:"100vh", overflow:"hidden", background:C.white, fontFamily:font, position:"relative" }}>{R()}</div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
