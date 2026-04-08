@@ -11,9 +11,9 @@ const appStore = useAppStore()
 
 const BASE_URL = 'https://terminal.dev.medcontact.kz/orginfo/api/v1/public/faq'
 const TENANT_ID = '00000000-0000-4000-a000-000000000001'
-const langMap: Record<string, string> = { ru: 'ru', kz: 'kk' }
+
 const apiHeaders = () => ({
-  'Accept-Language': langMap[appStore.lang] ?? 'ru',
+  'Accept-Language': appStore.lang,
   'ngrok-skip-browser-warning': 'true',
   'x-tenant-id': TENANT_ID,
   'X-Service-Binding-Alias': 'terminal',

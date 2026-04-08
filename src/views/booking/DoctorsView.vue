@@ -10,7 +10,7 @@ import KModal from '@/components/shared/KModal.vue'
 
 const BASE_URL = 'https://bream-crisp-strongly.ngrok-free.app/api/v1'
 const TENANT_ID = '00000000-0000-4000-a000-000000000001'
-const LANG_MAP: Record<string, string> = { ru: 'ru', kz: 'kk' }
+
 
 // Slot: [start_timestamp_seconds, end_timestamp_seconds]
 type Slot = [number, number]
@@ -50,13 +50,14 @@ const apiHeaders = () => ({
   'accept': 'application/json',
   'X-Tenant-ID': TENANT_ID,
   'X-Service-Binding-Alias': 'terminal',
-  'Accept-Language': LANG_MAP[appStore.lang] ?? 'ru',
+  'Accept-Language': appStore.lang,
   'ngrok-skip-browser-warning': 'true',
 })
 
 const schedules = ref<Schedule[]>([])
 const loading = ref(false)
 const fetchError = ref('')
+const fetchedEndDate = ref<Date | null>(null)
 
 const selSpec = ref<Specialist | null>(null)
 const selSchedule = ref<Schedule | null>(null)
@@ -89,12 +90,15 @@ onMounted(() => {
   fetchSchedules()
 })
 
-async function fetchSchedules() {
+async function fetchSchedules(extendToDate?: Date) {
   loading.value = true
   fetchError.value = ''
   try {
     const start = new Date(); start.setHours(0, 0, 0, 0)
-    const end = new Date(); end.setMonth(end.getMonth() + 3); end.setHours(23, 59, 59, 0)
+    const end = extendToDate ?? new Date()
+    if (!extendToDate) { end.setMonth(end.getMonth() + 3) }
+    end.setHours(23, 59, 59, 0)
+    fetchedEndDate.value = new Date(end)
     const params = new URLSearchParams({
       iin: iin.value,
       start_date: start.toISOString(), end_date: end.toISOString(),
@@ -207,11 +211,27 @@ function nextMonth() {
   if (calMonth.value === 11) { calMonth.value = 0; calYear.value++ }
   else calMonth.value++
   selDayKey.value = null
+  // If navigated beyond fetched range, extend the fetch
+  if (fetchedEndDate.value) {
+    const viewEnd = new Date(calYear.value, calMonth.value + 1, 0, 23, 59, 59)
+    if (viewEnd > fetchedEndDate.value) {
+      const newEnd = new Date(calYear.value, calMonth.value + 1, 0, 23, 59, 59)
+      fetchSchedules(newEnd)
+    }
+  }
 }
 
 const slotsForDay = computed((): SlotItem[] => {
   if (!selDayKey.value) return []
-  return slotsByDay.value.get(selDayKey.value) ?? []
+  const items = slotsByDay.value.get(selDayKey.value) ?? []
+  if (selDoctorId.value) return items
+  // When showing all doctors, deduplicate slots by start time
+  const seen = new Set<number>()
+  return items.filter(item => {
+    if (seen.has(item.slot[0])) return false
+    seen.add(item.slot[0])
+    return true
+  })
 })
 
 function selectSlot(item: SlotItem) {
@@ -235,6 +255,7 @@ async function confirmBooking() {
       appointment_time: slotDate(selSlot.value).toISOString(),
       service_id: selSchedule.value.service_id,
       specialty_id: booking.selectedSpecialtyId || null,
+      specialist_id: selSpec.value.id || null,
       is_pmsp: null,
       is_self_registration_payable: null,
     }
@@ -257,11 +278,12 @@ async function confirmBooking() {
     const data = await res.json()
     booking.setBookingResult({
       serviceId: selSchedule.value.service_id,
-      serviceName: selSchedule.value.service_name,
-      specialistName: selSpec.value.full_name,
-      appointmentTime: slotDate(selSlot.value).toISOString(),
+      serviceName: data.service_name || selSchedule.value.service_name,
+      specialistName: data.doctor_name || selSpec.value.full_name,
+      appointmentTime: data.appointment_time || slotDate(selSlot.value).toISOString(),
       appointmentId: data.appointment_id,
       scheduleRecordId: data.schedule_record_id,
+      cabinet: data.cabinet || '',
     })
     selSchedule.value = null
     selSpec.value = null
@@ -296,7 +318,7 @@ function formatTime(slot: Slot) {
       <!-- Error -->
       <div v-else-if="fetchError" class="text-center py-8 text-sm fhd:text-xl" style="color:#ef4444">
         {{ fetchError }}
-        <button @click="fetchSchedules" class="block mx-auto mt-3 px-4 fhd:px-7 py-2 fhd:py-4 rounded-xl text-xs fhd:text-lg font-bold border-none cursor-pointer"
+        <button @click="fetchSchedules()" class="block mx-auto mt-3 px-4 fhd:px-7 py-2 fhd:py-4 rounded-xl text-xs fhd:text-lg font-bold border-none cursor-pointer"
           style="background:#E8EBFF; color:#111FA2;">Повторить</button>
       </div>
 

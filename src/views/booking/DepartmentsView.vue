@@ -8,7 +8,7 @@ import PageShell from '@/components/shared/PageShell.vue'
 
 const BASE_URL = 'https://bream-crisp-strongly.ngrok-free.app/api/v1'
 const TENANT_ID = '00000000-0000-4000-a000-000000000001'
-const LANG_MAP: Record<string, string> = { ru: 'ru', kz: 'kk' }
+
 
 interface Specialty { id: string; name: string }
 
@@ -21,7 +21,7 @@ const apiHeaders = () => ({
   'accept': 'application/json',
   'X-Tenant-ID': TENANT_ID,
   'X-Service-Binding-Alias': 'terminal',
-  'Accept-Language': LANG_MAP[appStore.lang] ?? 'ru',
+  'Accept-Language': appStore.lang,
   'ngrok-skip-browser-warning': 'true',
 })
 

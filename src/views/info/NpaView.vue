@@ -9,9 +9,9 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const BASE_URL = 'https://terminal.dev.medcontact.kz/orginfo/api/v1/public/npa'
-const langMap: Record<string, string> = { ru: 'ru', kz: 'kk' }
+
 const apiHeaders = () => ({
-  'Accept-Language': langMap[appStore.lang] ?? 'ru',
+  'Accept-Language': appStore.lang,
   'ngrok-skip-browser-warning': 'true',
 })
 

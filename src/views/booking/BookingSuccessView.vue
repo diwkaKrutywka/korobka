@@ -9,7 +9,7 @@ import PageShell from '@/components/shared/PageShell.vue'
 
 const BASE_URL = 'https://bream-crisp-strongly.ngrok-free.app/api/v1'
 const TENANT_ID = '00000000-0000-4000-a000-000000000001'
-const LANG_MAP: Record<string, string> = { ru: 'ru', kz: 'kk' }
+
 
 const router = useRouter()
 const { t } = useI18n()
@@ -21,7 +21,7 @@ const apiHeaders = () => ({
   'accept': 'application/json',
   'X-Tenant-ID': TENANT_ID,
   'X-Service-Binding-Alias': 'terminal',
-  'Accept-Language': LANG_MAP[appStore.lang] ?? 'ru',
+  'Accept-Language': appStore.lang,
   'ngrok-skip-browser-warning': 'true',
 })
 
@@ -97,11 +97,13 @@ function goHome() {
         </div>
 
         <div
-          v-for="[label, val] in [
-            [t('booking.appointment'), `${booking.specialistName} (${booking.serviceName})`],
-            [t('booking.patient'), patientName],
+          v-for="[label, val] in ([
+            [t('booking.doctor'), booking.specialistName],
+            [t('booking.service'), booking.serviceName],
             [t('booking.datetime'), formattedDatetime],
-          ]"
+            booking.cabinet ? [t('booking.cabinet'), booking.cabinet] : null,
+            [t('booking.patient'), patientName],
+          ] as [string, string][]).filter(Boolean)"
           :key="label"
           class="flex items-start gap-3 py-3 fhd:py-5 border-b last:border-b-0"
           style="border-color:#e4e6f8;"

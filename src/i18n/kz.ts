@@ -59,6 +59,8 @@ export default {
     chooseTime: 'Уақытты таңдаңыз:',
     confirm: 'Жазылуды растау',
     patient: 'Пациент',
+    doctor: 'Дәрігер',
+    service: 'Қызмет',
     appointment: 'Қабылдау',
     datetime: 'Күні мен уақыты',
     cabinet: 'Кабинет',

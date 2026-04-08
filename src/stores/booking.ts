@@ -12,6 +12,7 @@ export const useBookingStore = defineStore('booking', () => {
   const appointmentTime = ref('')
   const appointmentId = ref<number | null>(null)
   const scheduleRecordId = ref<number | null>(null)
+  const cabinet = ref('')
 
   function setIin(v: string) { iin.value = v }
 
@@ -33,6 +34,7 @@ export const useBookingStore = defineStore('booking', () => {
     appointmentTime: string
     appointmentId: number
     scheduleRecordId: number
+    cabinet: string
   }) {
     serviceId.value = params.serviceId
     serviceName.value = params.serviceName
@@ -40,6 +42,7 @@ export const useBookingStore = defineStore('booking', () => {
     appointmentTime.value = params.appointmentTime
     appointmentId.value = params.appointmentId
     scheduleRecordId.value = params.scheduleRecordId
+    cabinet.value = params.cabinet
   }
 
   function reset() {
@@ -52,12 +55,13 @@ export const useBookingStore = defineStore('booking', () => {
     appointmentTime.value = ''
     appointmentId.value = null
     scheduleRecordId.value = null
+    cabinet.value = ''
   }
 
   return {
     iin, selectedDept, selectedSpecialtyId,
     serviceId, serviceName, specialistName, appointmentTime,
-    appointmentId, scheduleRecordId,
+    appointmentId, scheduleRecordId, cabinet,
     setIin, setDept, setBookingResult, reset,
   }
 })

@@ -59,6 +59,8 @@ export default {
     chooseTime: 'Выберите время:',
     confirm: 'Подтверждение записи',
     patient: 'Пациент',
+    doctor: 'Врач',
+    service: 'Услуга',
     appointment: 'Приём',
     datetime: 'Дата и время',
     cabinet: 'Кабинет',
