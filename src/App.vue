@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/app'
 import { useInactivityTimer } from '@/composables/useInactivityTimer'
 import { useSoundControl } from '@/composables/useSoundControl'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
@@ -74,20 +74,20 @@ onUnmounted(() => {
               <circle cx="36" cy="36" r="30" fill="none" stroke="#E8EBFF" stroke-width="6"/>
               <circle cx="36" cy="36" r="30" fill="none" stroke="#111FA2" stroke-width="6"
                 stroke-linecap="round"
-                :stroke-dasharray="`${2 * Math.PI * 30}`"
-                :stroke-dashoffset="`${2 * Math.PI * 30 * (1 - countdown / 5)}`"
+                :stroke-dasharray="`${2 * Math.PI * 30} ${2 * Math.PI * 30}`"
+                :stroke-dashoffset="-2 * Math.PI * 30 * (1 - countdown / 5)"
                 transform="rotate(-90 36 36)"
                 style="transition: stroke-dashoffset 1s linear;"/>
               <text x="36" y="42" text-anchor="middle" font-size="22" font-weight="800" fill="#111FA2">{{ countdown }}</text>
             </svg>
           </div>
-          <div class="inactivity-title font-extrabold text-base mb-1" style="color:#111827">Вы здесь?</div>
-          <div class="inactivity-sub text-sm mb-5" style="color:#6b7280">Сессия завершится через {{ countdown }} сек</div>
+          <div class="inactivity-title font-extrabold text-base mb-1" style="color:#111827">{{ t('inactivity.title') }}</div>
+          <div class="inactivity-sub text-sm mb-5" style="color:#6b7280">{{ t('inactivity.sub', { n: countdown }) }}</div>
           <button
             @click="dismiss"
             class="inactivity-btn w-full py-3 rounded-2xl text-sm font-extrabold text-white border-none cursor-pointer"
             style="background:linear-gradient(135deg,#111FA2,#5478FF);">
-            Да, я здесь
+            {{ t('inactivity.btn') }}
           </button>
         </div>
       </div>

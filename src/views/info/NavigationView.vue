@@ -145,7 +145,8 @@ const FDATA: Record<string, Array<{ id: string; name: string; x: number; y: numb
             boxShadow: navTab === tab ? '0 1px 6px rgba(17,31,162,0.1)' : 'none',
             opacity: tab === 'map' ? '0.5' : '1',
           }">
-          {{ tab === 'nav' ? t('info.navigation') : t('info.map') }}
+          <template v-if="tab === 'nav'">{{ t('info.navigation') }}</template>
+          <template v-else>🔒 {{ t('info.map') }}</template>
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 <template>
   <div class="auth-page">
 
-  <PageShell :header-bg="'#ffffff'" :footer-bg="'#ffffff'" :show-back="true">
+  <PageShell :header-bg="'#ffffff'" :footer-bg="'#ffffff'" :show-back="true" :show-home="true">
 
     <main class="auth-main">
       <div class="auth-container animate-fade-in">

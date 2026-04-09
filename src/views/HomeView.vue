@@ -217,12 +217,22 @@ const labelMap: Record<string, { n: string; sub: string }> = {
     </div>
 
     <button
-      class="ai-button mt-4 w-full flex justify-evenly"
+      class="osms-button mt-4 w-full"
       @click="navigate('/osms')"
     >
-      <img src="../assets/stra.png" class="w-10 h-10"/>
-      {{ t('home.osmsCard') }}
-      <span class="arrow"></span>
+      <div class="osms-icon-wrap">
+        <img src="../assets/stra.png" class="w-6 h-6"/>
+      </div>
+      <div class="flex flex-col items-center flex-1">
+        <span class="osms-button-title">{{ t('home.osmsCard') }}</span>
+        <span class="osms-button-sub">{{ t('home.osmsSub') }}</span>
+      </div>
+      <!-- <svg class="osms-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18l6-6-6-6"/>
+      </svg> -->
+      <div class="w-8">
+
+      </div>
     </button>
     </div>
       </div>
@@ -383,20 +393,17 @@ const labelMap: Record<string, { n: string; sub: string }> = {
   line-height: 1.55;
 }
 
-/* AI button */
+/* OSMS button */
 
-.ai-button{
+.osms-button {
   background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 60%, #1E3A8A 100%);
-  border-radius: 14px;
-  padding: 0 20px;
-  height: 56px;
+  border-radius: 16px;
+  padding: 22px 24px;
   display: flex;
+  height: 50px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 16px;
   color: white;
-  font-weight: 700;
-  font-size: 17px;
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow:
     0 4px 16px rgba(37,99,235,0.35),
@@ -404,19 +411,40 @@ const labelMap: Record<string, { n: string; sub: string }> = {
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
-.ai-button:active {
+.osms-button:active {
   transform: scale(0.97);
   box-shadow: 0 2px 8px rgba(37,99,235,0.45);
 }
 
-.ai-icon{
-  width: 22px;
-  filter: brightness(0) invert(1);
+.osms-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.arrow{
-  margin-left: 6px;
-  font-size: 20px;
+.osms-button-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 3px;
+}
+
+.osms-button-sub {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.7;
+  line-height: 1.3;
+}
+
+.osms-arrow {
+  width: 20px;
+  height: 20px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 </style>
