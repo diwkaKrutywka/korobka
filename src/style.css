@@ -132,8 +132,9 @@
     padding: 0 36px !important;
     gap: 16px !important;
   }
-  .osms-button img { width: 52px !important; height: 52px !important; }
+  .osms-button img { width: 55px !important; height: 52px !important; }
   .osms-button-sub { font-size: 30px !important; }
+  .osms-button-title { font-size: 36px !important; }
   .arrow { font-size: 32px !important; }
 
   /* Greeting */

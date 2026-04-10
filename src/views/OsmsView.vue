@@ -9,8 +9,8 @@ const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
-const BASE_URL = 'https://terminal.dev.medcontact.kz/orginfo/api/v1/public/faq'
-const TENANT_ID = '00000000-0000-4000-a000-000000000001'
+const BASE_URL = `${import.meta.env.VITE_ORGINFO_API_URL}/faq`
+const TENANT_ID = import.meta.env.VITE_TENANT_ID
 
 const apiHeaders = () => ({
   'Accept-Language': appStore.lang,

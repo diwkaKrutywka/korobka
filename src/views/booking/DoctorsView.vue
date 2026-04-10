@@ -8,8 +8,8 @@ import { useAppStore } from '@/stores/app'
 import PageShell from '@/components/shared/PageShell.vue'
 import KModal from '@/components/shared/KModal.vue'
 
-const BASE_URL = 'https://bream-crisp-strongly.ngrok-free.app/api/v1'
-const TENANT_ID = '00000000-0000-4000-a000-000000000001'
+const BASE_URL = import.meta.env.VITE_BOOKING_API_URL
+const TENANT_ID = import.meta.env.VITE_TENANT_ID
 
 
 // Slot: [start_timestamp_seconds, end_timestamp_seconds]
@@ -65,6 +65,53 @@ const selSlot = ref<Slot | null>(null)
 const bookLoading = ref(false)
 const bookError = ref('')
 
+interface ErrorModal {
+  title: string
+  message: string
+  primaryBtn: { label: string; action: () => void }
+  secondaryBtn?: { label: string; action: () => void }
+}
+const apiErrorModal = ref<ErrorModal | null>(null)
+
+function showApiError(code: number | undefined, message: string) {
+  if (code === 30) {
+    apiErrorModal.value = {
+      title: 'Пациент не найден',
+      message,
+      primaryBtn: { label: 'Ввести ИИН заново', action: () => router.replace('/book') },
+      secondaryBtn: { label: 'Закрыть', action: () => router.replace('/') },
+    }
+  } else if (code === 210) {
+    apiErrorModal.value = {
+      title: 'Нет данных о прикреплении',
+      message,
+      primaryBtn: { label: 'На главную', action: () => router.replace('/') },
+      secondaryBtn: { label: 'Закрыть', action: () => router.replace('/') },
+    }
+  } else if (code === 560) {
+    apiErrorModal.value = {
+      title: 'Время недоступно',
+      message,
+      primaryBtn: {
+        label: 'Выбрать другое время',
+        action: () => { apiErrorModal.value = null; fetchSchedules() },
+      },
+    }
+  } else if (code === 10) {
+    apiErrorModal.value = {
+      title: 'Требуется направление',
+      message,
+      primaryBtn: { label: 'Понятно', action: () => { apiErrorModal.value = null } },
+    }
+  } else {
+    apiErrorModal.value = {
+      title: 'Ошибка',
+      message,
+      primaryBtn: { label: 'Закрыть', action: () => { apiErrorModal.value = null } },
+    }
+  }
+}
+
 const iin = computed(() => userStore.iin || booking.iin)
 const patientName = computed(() => {
   const u = userStore.user
@@ -107,6 +154,16 @@ async function fetchSchedules(extendToDate?: Date) {
     if (booking.selectedSpecialtyId) params.set('specialty_id', booking.selectedSpecialtyId)
     const res = await fetch(`${BASE_URL}/schedules/items?${params}`, { headers: apiHeaders() })
     const data = await res.json()
+    if (!res.ok) {
+      const code = data?.error?.details?.damumed_code
+      const msg: string = data?.error?.message || 'Не удалось загрузить расписание'
+      if (code === 30 || code === 210) {
+        showApiError(code, msg)
+      } else {
+        fetchError.value = msg
+      }
+      return
+    }
     schedules.value = data.items ?? []
     autoSelectDay()
   } catch {
@@ -267,9 +324,17 @@ async function confirmBooking() {
     if (!res.ok) {
       const err = await res.json().catch(() => null)
       const msg: string = err?.error?.message || err?.message || 'Ошибка при записи'
+      const code = err?.error?.details?.damumed_code
       // IIN missing or invalid — redirect to IIN input
-      if (err?.error?.details?.damumed_code === 20 || msg.toLowerCase().includes('iin')) {
+      if (code === 20 || msg.toLowerCase().includes('iin')) {
         router.replace('/book')
+        return
+      }
+      // Structured API errors — show modal
+      if (code === 10 || code === 30 || code === 210 || code === 560) {
+        selSchedule.value = null
+        selSlot.value = null
+        showApiError(code, msg)
         return
       }
       bookError.value = msg
@@ -432,6 +497,30 @@ function formatTime(slot: Slot) {
         </div>
       </template>
     </div>
+
+    <!-- API error modal -->
+    <KModal v-if="apiErrorModal" @close="router.replace('/')" >
+      <div class="p-6 fhd:p-10 flex flex-col items-center text-center">
+        <div class="mb-4 fhd:mb-6 w-14 h-14 fhd:w-20 fhd:h-20 rounded-full flex items-center justify-center" style="background:#FEE2E2;">
+          <svg width="28" height="28" class="fhd:w-10 fhd:h-10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div class="font-extrabold text-base fhd:text-2xl mb-2 fhd:mb-3" style="color:#1a1a2e">{{ apiErrorModal.title }}</div>
+        <div class="text-sm fhd:text-xl mb-6 fhd:mb-10 leading-snug" style="color:#6b7280">{{ apiErrorModal.message }}</div>
+        <button
+          class="kb w-full py-3 fhd:py-5 rounded-2xl fhd:rounded-3xl text-sm fhd:text-xl font-extrabold text-white border-none cursor-pointer mb-2 fhd:mb-4"
+          style="background:linear-gradient(135deg,#111FA2,#5478FF);"
+          @click="apiErrorModal.primaryBtn.action()"
+        >{{ apiErrorModal.primaryBtn.label }}</button>
+        <button
+          v-if="apiErrorModal.secondaryBtn"
+          class="kb w-full py-2.5 fhd:py-5 rounded-2xl fhd:rounded-3xl text-xs fhd:text-xl font-bold cursor-pointer border-2 bg-transparent"
+          style="color:#111FA2; border-color:#5478FF;"
+          @click="apiErrorModal.secondaryBtn.action()"
+        >{{ apiErrorModal.secondaryBtn.label }}</button>
+      </div>
+    </KModal>
 
     <!-- Confirmation modal -->
     <KModal v-if="selSchedule && selSlot" @close="selSchedule = null; selSlot = null">

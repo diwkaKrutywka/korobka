@@ -173,7 +173,7 @@ const check = async () => {
 
   try {
     const body = new URLSearchParams({ iin: iin.value })
-    const res = await fetch('https://proxy.medcontact.kz/insurance', {
+    const res = await fetch(import.meta.env.VITE_OSMS_PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),

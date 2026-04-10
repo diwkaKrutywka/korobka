@@ -8,7 +8,7 @@ import KModal from '@/components/shared/KModal.vue'
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const BASE_URL = 'https://terminal.dev.medcontact.kz/orginfo/api/v1/public/npa'
+const BASE_URL = `${import.meta.env.VITE_ORGINFO_API_URL}/npa`
 
 const apiHeaders = () => ({
   'Accept-Language': appStore.lang,

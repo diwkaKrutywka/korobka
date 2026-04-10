@@ -7,8 +7,8 @@ import { useUserStore } from '@/stores/index'
 import { useAppStore } from '@/stores/app'
 import PageShell from '@/components/shared/PageShell.vue'
 
-const BASE_URL = 'https://bream-crisp-strongly.ngrok-free.app/api/v1'
-const TENANT_ID = '00000000-0000-4000-a000-000000000001'
+const BASE_URL = import.meta.env.VITE_BOOKING_API_URL
+const TENANT_ID = import.meta.env.VITE_TENANT_ID
 
 
 const router = useRouter()
