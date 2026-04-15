@@ -11,6 +11,7 @@ defineProps<{
   headerBg?: string
   footerBg?: string
   subtitle?: string
+  videoSrc?: string
   onBack?: () => void
 }>()
 </script>
@@ -18,7 +19,7 @@ defineProps<{
 <template>
   <div class="flex flex-col h-full relative" :style="{ background: bg ?? '#ffffff' }">
     <AppStatusBar :bg="headerBg" />
-    <AppAvatar :mini="true" :subtitle="subtitle" />
+    <AppAvatar :mini="true" :subtitle="subtitle" :video-src="videoSrc" />
 
     <!-- Scrollable slot -->
     <div class="flex-1 overflow-y-auto pb-[72px] fhd:pb-[144px]">

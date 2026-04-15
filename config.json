@@ -1,0 +1,10 @@
+{
+  "printer": {
+    "enabled": true,
+    "printerName": "CUSTOM TG2480-H",
+    "encoding": "cp866",
+    "codepageId": 17,
+    "simulate": false,
+    "clinicName": "МЕД-ЦЕНТР"
+  }
+}

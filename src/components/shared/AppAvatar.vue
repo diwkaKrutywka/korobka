@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { usePageVideo } from '@/composables/usePageVideo'
 import { useSoundControl } from '@/composables/useSoundControl'
 
 const props = defineProps<{ size?: number; mini?: boolean; videoSrc?: string; subtitle?: string }>()
-const { videoSrc: autoVideoSrc } = usePageVideo()
+const { videoSrc: autoVideoSrc, isLoop, onVideoEnded } = usePageVideo()
 const { isSoundEnabled } = useSoundControl()
 const { t } = useI18n()
 const route = useRoute()
@@ -23,6 +23,30 @@ onMounted(() => {
 onUnmounted(() => {
   if (props.mini) sessionStorage.setItem('returnToHome', '1')
 })
+
+// Crossfade: старое видео накладывается поверх и исчезает,
+// пока новое грузится снизу — вспышки не видно
+const effectiveSrc = computed(() => props.videoSrc ?? autoVideoSrc.value)
+const currSrc = ref(effectiveSrc.value)
+const prevSrc = ref('')
+const prevVisible = ref(false)
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(effectiveSrc, (newSrc, oldSrc) => {
+  if (oldSrc && oldSrc !== newSrc) {
+    if (fadeTimer) clearTimeout(fadeTimer)
+    prevSrc.value = oldSrc
+    prevVisible.value = true
+    fadeTimer = setTimeout(() => {
+      prevVisible.value = false
+    }, 500)
+  }
+  currSrc.value = newSrc
+})
+
+onUnmounted(() => {
+  if (fadeTimer) clearTimeout(fadeTimer)
+})
 </script>
 
 <template>
@@ -38,27 +62,51 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <div class="avatar-glow-mini rounded-full overflow-hidden flex-shrink-0">
+    <div class="avatar-glow-mini rounded-full overflow-hidden flex-shrink-0 relative">
+      <!-- Новое видео снизу -->
       <video
-        :src="props.videoSrc ?? autoVideoSrc"
-        autoplay loop :muted="!isSoundEnabled" playsinline
+        :key="currSrc"
+        :src="currSrc"
+        autoplay :loop="isLoop" :muted="!isSoundEnabled" playsinline
         class="w-full h-full object-cover"
+        @ended="onVideoEnded"
       />
+      <!-- Старое видео сверху — плавно исчезает -->
+      <Transition name="prev-fade">
+        <video
+          v-if="prevVisible && prevSrc"
+          :src="prevSrc"
+          autoplay loop muted playsinline
+          class="absolute inset-0 w-full h-full object-cover"
+        />
+      </Transition>
     </div>
   </div>
 
   <!-- Regular avatar -->
   <div v-else
-    class="avatar-glow rounded-full overflow-hidden border-[3px] border-white flex-shrink-0"
+    class="avatar-glow rounded-full overflow-hidden border-[3px] border-white flex-shrink-0 relative"
     :style="{
       width: `${props.size ?? 120}px`,
       height: `${props.size ?? 120}px`,
     }">
+    <!-- Новое видео снизу -->
     <video
-      :src="props.videoSrc ?? autoVideoSrc"
-      autoplay loop :muted="!isSoundEnabled" playsinline
+      :key="currSrc"
+      :src="currSrc"
+      autoplay :loop="isLoop" :muted="!isSoundEnabled" playsinline
       class="w-full h-full object-cover"
+      @ended="onVideoEnded"
     />
+    <!-- Старое видео сверху — плавно исчезает -->
+    <Transition name="prev-fade">
+      <video
+        v-if="prevVisible && prevSrc"
+        :src="prevSrc"
+        autoplay loop muted playsinline
+        class="absolute inset-0 w-full h-full object-cover"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -147,7 +195,7 @@ onUnmounted(() => {
 
 /* Arrow pointing right toward avatar */
 .bubble-tail {
- 
+
   right: -47px;
   top: 50%;
   transform: translateY(-50%);
@@ -157,6 +205,18 @@ onUnmounted(() => {
   border-bottom: 6px solid transparent;
   border-left: 7px solid #fff;
   filter: drop-shadow(1px 0 1px rgba(21, 101, 192, 0.1));
+}
+
+/* Старое видео появляется мгновенно (уже играло) и плавно исчезает */
+.prev-fade-enter-from,
+.prev-fade-enter-active {
+  opacity: 1;
+}
+.prev-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.prev-fade-leave-to {
+  opacity: 0;
 }
 
 /* Transition — только fade при уходе */

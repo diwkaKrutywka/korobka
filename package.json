@@ -3,13 +3,35 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite --port 3000",
+    "dev": "vite",
+    "electron:dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "electron:build": "vue-tsc -b && vite build && electron-builder",
     "preview": "vite preview"
   },
+  "build": {
+    "appId": "kz.medcenter.terminal",
+    "productName": "MedTerminal",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "config.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  },
   "dependencies": {
+    "@srsembek/kaspi-smart-pos-sdk": "^1.0.0",
     "@vueuse/core": "^14.2.1",
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "iconv-lite": "^0.6.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-vue-next": "^0.577.0",
@@ -25,9 +47,13 @@
     "@types/node": "^24.12.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "@vue/tsconfig": "^0.9.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6",
     "vue-tsc": "^3.2.5"
   }
 }

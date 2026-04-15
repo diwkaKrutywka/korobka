@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { usePageVideo } from "@/composables/usePageVideo";
@@ -6,7 +7,25 @@ import AppStatusBar from "@/components/shared/AppStatusBar.vue";
 
 const router = useRouter();
 const { t } = useI18n();
-const { videoSrc } = usePageVideo();
+const { videoSrc, isLoop, onVideoEnded } = usePageVideo();
+
+// Crossfade: старое видео поверх, плавно исчезает
+const currSrc = ref(videoSrc.value)
+const prevSrc = ref('')
+const prevVisible = ref(false)
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(videoSrc, (newSrc, oldSrc) => {
+  if (oldSrc && oldSrc !== newSrc) {
+    if (fadeTimer) clearTimeout(fadeTimer)
+    prevSrc.value = oldSrc
+    prevVisible.value = true
+    fadeTimer = setTimeout(() => { prevVisible.value = false }, 500)
+  }
+  currSrc.value = newSrc
+})
+
+onUnmounted(() => { if (fadeTimer) clearTimeout(fadeTimer) })
 </script>
 
 <template>
@@ -31,9 +50,16 @@ const { videoSrc } = usePageVideo();
           style="inset:-24px; background:radial-gradient(circle,rgba(66,165,245,0.15) 0%,transparent 70%);" />
         <div class="absolute rounded-full animate-aura-2"
           style="inset:-24px; background:radial-gradient(circle,rgba(21,101,192,0.1) 0%,transparent 70%);" />
-        <div class="welcome-video rounded-full overflow-hidden border-4 border-white"
+        <div class="welcome-video rounded-full overflow-hidden border-4 border-white relative"
           style="box-shadow:0 16px 56px rgba(21,101,192,0.2),0 4px 16px rgba(21,101,192,0.12);">
-          <video :src="videoSrc" autoplay loop muted playsinline class="w-full h-full object-cover" />
+          <!-- Новое видео снизу -->
+          <video :key="currSrc" :src="currSrc" autoplay :loop="isLoop" muted playsinline
+            class="w-full h-full object-cover" @ended="onVideoEnded" />
+          <!-- Старое видео сверху — плавно исчезает -->
+          <Transition name="prev-fade">
+            <video v-if="prevVisible && prevSrc" :src="prevSrc" autoplay loop muted playsinline
+              class="absolute inset-0 w-full h-full object-cover" />
+          </Transition>
         </div>
       </div>
 
@@ -50,7 +76,7 @@ const { videoSrc } = usePageVideo();
           Бастау үшін басыңыз · Нажмите для начала
         </div>
         <div class="h-[80px] fhd:h-[180px]" />
-          
+
       </div>
     </div>
 
@@ -61,6 +87,18 @@ const { videoSrc } = usePageVideo();
 </template>
 
 <style scoped>
+/* Старое видео появляется мгновенно и плавно исчезает */
+.prev-fade-enter-from,
+.prev-fade-enter-active {
+  opacity: 1;
+}
+.prev-fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.prev-fade-leave-to {
+  opacity: 0;
+}
+
 .welcome-content { gap: 32px; padding: 0 32px; }
 .welcome-title   { font-size: 1.875rem; }
 .welcome-sub     { font-size: 1.875rem; }

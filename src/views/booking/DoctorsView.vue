@@ -7,6 +7,7 @@ import { useUserStore } from '@/stores/index'
 import { useAppStore } from '@/stores/app'
 import PageShell from '@/components/shared/PageShell.vue'
 import KModal from '@/components/shared/KModal.vue'
+import { vid } from '@/composables/usePageVideo'
 
 const BASE_URL = import.meta.env.VITE_BOOKING_API_URL
 const TENANT_ID = import.meta.env.VITE_TENANT_ID
@@ -364,10 +365,18 @@ async function confirmBooking() {
 function formatTime(slot: Slot) {
   return slotDate(slot).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', timeZone: SLOT_TZ })
 }
+
+// Видео: book-confirm когда открыта модалка подтверждения, иначе авто из routeMap
+const lang = computed(() => appStore.lang === 'kk' ? 'kz' : 'ru')
+const avatarVideoSrc = computed(() =>
+  selSchedule.value && selSlot.value
+    ? vid(`book-confirm-${lang.value}`)
+    : undefined
+)
 </script>
 
 <template>
-  <PageShell :show-back="true" :show-home="true">
+  <PageShell :show-back="true" :show-home="true" :video-src="avatarVideoSrc">
     <div class="px-4 fhd:px-10 py-3 fhd:py-8 max-w-sm fhd:max-w-3xl mx-auto">
 
       <!-- Title -->

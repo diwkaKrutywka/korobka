@@ -1,0 +1,12 @@
+{
+  "name": "print-server",
+  "version": "1.0.0",
+  "description": "Silent print server for CUSTOM TG2480-H thermal printer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@thiagoelg/node-printer": "^0.4.2"
+  }
+}

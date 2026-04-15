@@ -18,7 +18,7 @@ export function useHomeCycleVideo() {
 
   const mainSrc = computed(() => {
     const lang = locale.value === 'kk' ? 'kz' : 'ru'
-    return lang === 'ru' ? vid('home_new_ru-0') : vid('home_new_kz-1')
+    return lang === 'ru' ? vid('main-menu-ru') : vid('main-menu-kz')
   })
 
   const videoSrc = computed(() =>
