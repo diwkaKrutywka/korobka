@@ -9,6 +9,7 @@ const router = createRouter({
     { path: '/book',       name: 'book',        component: () => import('@/views/booking/BookingIinView.vue') },
     { path: '/book/depts', name: 'depts',       component: () => import('@/views/booking/DepartmentsView.vue') },
     { path: '/departments', name: 'departments', component: () => import('@/views/booking/DepartmentsView.vue') },
+    { path: '/book/services', name: 'services',  component: () => import('@/views/booking/ServicesView.vue') },
     { path: '/book/docs',  name: 'docs',        component: () => import('@/views/booking/DoctorsView.vue') },
     { path: '/book/ok',    name: 'book-ok',     component: () => import('@/views/booking/BookingSuccessView.vue') },
     { path: '/osms',       name: 'osms',        component: () => import('@/views/OsmsView.vue') },

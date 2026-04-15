@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useBookingStore } from '@/stores/booking'
 import { useUserStore } from '@/stores/index'
 import { useAppStore } from '@/stores/app'
@@ -13,6 +14,7 @@ const TENANT_ID = import.meta.env.VITE_TENANT_ID
 interface Specialty { id: string; name: string }
 
 const router = useRouter()
+const { t } = useI18n()
 const booking = useBookingStore()
 const userStore = useUserStore()
 const appStore = useAppStore()
@@ -54,7 +56,7 @@ onMounted(async () => {
     const data = await res.json()
     specialties.value = data.items ?? []
   } catch {
-    error.value = 'Не удалось загрузить специальности'
+    error.value = t('booking.loadSpecError')
   } finally {
     loading.value = false
   }
@@ -62,7 +64,7 @@ onMounted(async () => {
 
 function select(id: string, name: string) {
   booking.setDept(name, id)
-  router.push('/book/docs')
+  router.push('/book/services')
 }
 
 function bookTherapist() {
@@ -82,19 +84,19 @@ function bookTherapist() {
 
     <!-- Patient info card -->
     <div class="info-card">
-      <div class="info-title">Запись на приём</div>
+      <div class="info-title">{{ t('booking.departments') }}</div>
       <div class="info-iin">ИИН: {{ iin }}</div>
       <div v-if="userName" class="info-name">{{ userName }}</div>
       <div v-if="plot" class="info-plot">Участок №{{ plot }}</div>
 
       <button v-if="!loading" class="therapist-btn" @click="bookTherapist">
-        Записаться к терапевту
+        {{ t('booking.toTherapist') }}
       </button>
     </div>
 
     <!-- Departments list -->
     <div class="depts-section">
-      <div class="depts-title">Отделения</div>
+      <div class="depts-title">{{ t('booking.section') }}</div>
 
       <div v-if="loading" class="flex justify-center py-10">
         <div class="w-8 h-8 rounded-full border-2 border-[#5478FF] border-t-transparent animate-spin" />
@@ -115,7 +117,7 @@ function bookTherapist() {
         </button>
 
         <div v-if="!specialties.length" class="text-center py-6 text-sm" style="color:#8a94cc">
-          Нет доступных специальностей
+          {{ t('booking.noSpecialties') }}
         </div>
       </div>
     </div>

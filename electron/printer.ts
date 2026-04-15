@@ -1,13 +1,16 @@
 /**
- * Thermal ticket printer — ESC/POS via Windows Print Spooler (RAW datatype)
+ * Thermal ticket printer — GDI via Windows System.Drawing.Printing.PrintDocument
  *
  * Architecture:
  *   Electron main  →  IPC  →  printer.ts
  *   printer.ts spawns a persistent PowerShell process once (warmup).
- *   PowerShell loads a C# P/Invoke helper via Add-Type (≈2 s cold start).
- *   Each print job:  main writes JSON line to PS stdin
- *                    PS calls winspool.drv WritePrinter with RAW datatype
- *                    PS writes JSON result to stdout
+ *   PowerShell loads System.Drawing (~100 ms, no C# compilation needed).
+ *   Each print job: main writes JSON line to PS stdin
+ *                   PS renders ticket lines with GDI PrintDocument
+ *                   PS writes JSON result to stdout
+ *
+ * GDI rendering gives full Unicode support — Kazakh Ə Ғ Қ Ң Ө Ұ Ү Һ І
+ * and any other Unicode characters print correctly via the system font.
  *
  * Config: config.json next to the app (see DEFAULT_CONFIG for all keys).
  */
@@ -18,26 +21,25 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import { createRequire } from 'node:module'
-
-const _require = createRequire(import.meta.url)
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 interface PrinterConfig {
-  enabled:     boolean
-  printerName: string
-  encoding:    string
-  codepageId:  number
-  simulate:    boolean
-  clinicName:  string
+  enabled:        boolean
+  printerName:    string
+  /** GDI font used for rendering — must be installed on the system */
+  fontName:       string
+  simulate:       boolean
+  clinicName:     string
+  clinicAddress?: string
+  clinicPhone?:   string
+  clinicSite?:    string
 }
 
 const DEFAULT_CONFIG: PrinterConfig = {
   enabled:     true,
   printerName: 'CUSTOM TG2480-H',
-  encoding:    'cp866',
-  codepageId:  17,
+  fontName:    'Courier New',
   simulate:    false,
   clinicName:  'МЕД-ЦЕНТР',
 }
@@ -60,208 +62,250 @@ export function loadConfig(): PrinterConfig {
   return _cfg
 }
 
-// ─── Ticket data ──────────────────────────────────────────────────────────────
+// ─── Ticket payload ───────────────────────────────────────────────────────────
 
 export interface TicketPayload {
   ticketNo?:   string | number | null
   fio:         string
+  iin?:        string
   doctor:      string
   specialty?:  string
   service?:    string
-  date:        string      // long form:  "16 апреля 2026"
-  dateShort:   string      // short form: "16 апреля"
-  dayOfWeek:   string      // "вторник"
-  time:        string      // "10:30"
+  date:        string       // "16 сәуір 2026"
+  dateShort:   string       // "16 сәуір"
+  dayOfWeek:   string       // "сейсенбі"
+  time:        string       // "10:30"
   cabinet?:    string
   floor?:      string
+  locale?:     string       // 'ru' | 'kk'
 }
 
-// ─── ESC/POS receipt builder ──────────────────────────────────────────────────
+// ─── Locale-aware labels ──────────────────────────────────────────────────────
 
-const COLS = 32   // Font A on 80 mm paper — exactly 32 columns
+interface TicketLabels {
+  ticket:      string
+  patient:     string
+  iin:         string
+  doctor:      string
+  appt:        string
+  cabinet:     string
+  floorSuffix: string
+  thanks:      string
+  registry:    string
+  printed:     string
+}
 
-export function buildEscPos(p: TicketPayload, cfg: PrinterConfig): Buffer {
-  // iconv-lite is an external CJS module
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const iconv: any = _require('iconv-lite')
+const LABELS: Record<string, TicketLabels> = {
+  ru: {
+    ticket: 'ТАЛОН НА ПРИЁМ',
+    patient: 'Пациент',
+    iin: 'ИИН',
+    doctor: 'Врач',
+    appt: 'Приём',
+    cabinet: 'Кабинет',
+    floorSuffix: 'эт.',
+    thanksLine1: 'Спасибо,',
+    thanksLine2: 'что выбрали нас!',
+    registry: 'Регистратура',
+    printed: 'Распечатано',
+  },
+  kk: {
+    ticket: 'ҚАБЫЛДАУҒА ТАЛОН',
+    patient: 'Пациент',
+    iin: 'ЖСН',
+    doctor: 'Дәрігер',
+    appt: 'Қабылдау',
+    cabinet: 'Кабинет',
+    floorSuffix: 'қ.',
+    thanksLine1: 'Бізді таңдағаныңызға',
+    thanksLine2: 'рахмет!',
+    registry: 'Тіркеу',
+    printed: 'Басылған',
+  },
+}
+// ─── GDI line descriptor ──────────────────────────────────────────────────────
 
-  const ESC = 0x1b
-  const GS  = 0x1d
-  const LF  = 0x0a
+interface GdiLine {
+  text?:    string
+  size?:    number     // font size in pt — default 9
+  bold?:    boolean
+  center?:  boolean
+  lf?:      number     // blank lines to insert
+}
 
-  /** Encode UTF-8 string → printer codepage Buffer */
-  const enc = (text: string): Buffer =>
-    iconv.encode(String(text ?? ''), cfg.encoding) as Buffer
+// ─── Ticket builder ───────────────────────────────────────────────────────────
 
-  /** Centre text within `w` character columns */
-  const centre = (text: string, w = COLS): string => {
-    const s = String(text).slice(0, w)
-    return ' '.repeat(Math.floor((w - s.length) / 2)) + s
+const COLS  = 32
+const SEP_H = '='.repeat(COLS)
+const SEP_T = '-'.repeat(COLS)
+
+function formatNow(): string {
+  return new Date().toLocaleString('ru-RU')
+}
+
+function wrapText(text: string, max = 24): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let current = ''
+
+  for (const word of words) {
+    if ((current + ' ' + word).trim().length > max) {
+      lines.push(current.trim())
+      current = word
+    } else {
+      current += ' ' + word
+    }
   }
 
-  /** Two-column row: label left, value right, total = COLS chars */
-  const twoCol = (label: string, value: string): string => {
-    const l = String(label).slice(0, 18)
-    const v = String(value).slice(0, COLS - l.length - 1)
-    return l + ' '.repeat(Math.max(1, COLS - l.length - v.length)) + v
+  if (current) lines.push(current.trim())
+  return lines
+}
+export function buildTicketLines(p: TicketPayload, cfg: PrinterConfig): GdiLine[] {
+  const L = LABELS[p.locale ?? 'ru']
+  const lines: GdiLine[] = []
+  const push = (...ls: GdiLine[]) => lines.push(...ls)
+
+  push({ text: cfg.clinicName, bold: true, center: true, size: 16 })
+  if (cfg.clinicAddress) push({ text: cfg.clinicAddress, center: true, size: 11 })
+
+  push({ lf: 1 })
+
+  push({ text: '═'.repeat(32) })
+  push({ text: String(p.ticketNo ?? '—'), bold: true, center: true, size: 26 })
+  push({ text: '═'.repeat(32) })
+
+  push({ lf: 1 })
+
+  push({ text: p.dateShort, bold: true, center: true, size: 18 })
+  push({ text: p.time, bold: true, center: true, size: 18 })
+  push({ text: p.dayOfWeek, bold: true, center: true, size: 18 })
+
+  push({ lf: 2 })
+
+  push({ text: '─'.repeat(32) })
+
+  const block = (label: string, value?: string) => {
+    if (!value) return
+
+    push({ text: label, bold: true, size: 12 })
+
+    const wrapped = wrapText(value, 20)
+    wrapped.forEach(line => push({ text: line, size: 14 }))
+
+    push({ lf: 1 })
   }
 
-  const SEP = '-'.repeat(COLS)
+  block(`${L.patient}:`, p.fio)
+  if (p.iin) block(`${L.iin}:`, p.iin)
+  block(`${L.doctor}:`, p.doctor)
 
-  const chunks: Buffer[] = []
-  const push = (...b: Buffer[]) => b.forEach(x => chunks.push(x))
-  const lf   = ()                => push(Buffer.from([LF]))
-  const cmd  = (...b: number[])  => push(Buffer.from(b))
-
-  // ── Init ────────────────────────────────────────────────────────────────
-  cmd(ESC, 0x40)                        // ESC @   — initialise
-  cmd(ESC, 0x74, cfg.codepageId)        // ESC t n — select codepage (17 = PC866)
-
-  // ── Header ──────────────────────────────────────────────────────────────
-  cmd(ESC, 0x61, 0x01)                  // ESC a 1 — centre
-  cmd(ESC, 0x45, 0x01)                  // bold ON
-  push(enc(cfg.clinicName)); lf()
-  cmd(ESC, 0x45, 0x00)                  // bold OFF
-  push(enc('ТАЛОН НА ПРИЁМ')); lf()
-
-  // ── Ticket number — GS ! 0x21 = 2× width, 3× height ────────────────────
-  push(enc(SEP)); lf()
-  cmd(GS, 0x21, 0x21)
-  cmd(ESC, 0x45, 0x01)
-  // with 2× width, effective columns = COLS/2 = 16
-  push(enc(centre(p.ticketNo != null ? `#${p.ticketNo}` : '—', 16)))
-  lf()
-  cmd(GS, 0x21, 0x00)
-  cmd(ESC, 0x45, 0x00)
-
-  // ── Date + time — GS ! 0x11 = 2× width, 2× height ───────────────────────
-  push(enc(SEP)); lf()
-  cmd(GS, 0x21, 0x11)
-  cmd(ESC, 0x45, 0x01)
-  push(enc(centre(`${p.dateShort}  ${p.time}`, 16)))
-  lf()
-  cmd(GS, 0x21, 0x00)
-  cmd(ESC, 0x45, 0x00)
-  push(enc(centre(p.dayOfWeek))); lf()
-
-  // ── Details ─────────────────────────────────────────────────────────────
-  push(enc(SEP)); lf()
-  cmd(ESC, 0x61, 0x00)                  // left
+  const apptVal = [p.specialty, p.service].filter(Boolean).join(' · ')
+  if (apptVal) block(`${L.appt}:`, apptVal)
 
   if (p.cabinet) {
-    cmd(ESC, 0x45, 0x01)
-    push(enc(twoCol('Кабинет', p.cabinet))); lf()
-    cmd(ESC, 0x45, 0x00)
+    const cabVal = p.floor
+      ? `${p.cabinet}, ${p.floor} ${L.floorSuffix}`
+      : p.cabinet
+    block(`${L.cabinet}:`, cabVal)
   }
-  if (p.floor)     { push(enc(twoCol('Этаж',          p.floor)));     lf() }
-  if (p.doctor)    { push(enc(twoCol('Врач',           p.doctor)));    lf() }
-  if (p.specialty) { push(enc(twoCol('Специальность',  p.specialty))); lf() }
-  if (p.service)   { push(enc(twoCol('Услуга',         p.service)));   lf() }
 
-  push(enc(SEP)); lf()
+  push({ text: '─'.repeat(32) })
 
-  // ── Patient name ────────────────────────────────────────────────────────
-  cmd(ESC, 0x61, 0x01)
-  cmd(ESC, 0x45, 0x01)
-  push(enc(p.fio.slice(0, COLS))); lf()
-  cmd(ESC, 0x45, 0x00)
+  push({ lf: 1 })
 
-  // ── Footer ──────────────────────────────────────────────────────────────
-  push(enc(SEP)); lf()
-  cmd(ESC, 0x61, 0x01)
-  push(enc(`Распечатано: ${new Date().toLocaleString('ru-RU')}`)); lf()
-  push(enc('Просьба прийти за 10 минут')); lf()
+  // 🔥 THANK YOU (2 строки отдельно)
+  push({ text: L.thanksLine1, bold: true, center: true, size: 13 })
+  push({ text: L.thanksLine2, bold: true, center: true, size: 13 })
 
-  // 8 empty lines so ticket clears the cutter slot (≈ 30 mm)
-  for (let i = 0; i < 8; i++) lf()
+  push({ lf: 1 })
 
-  // Atomic feed 16 lines + full cut — GS V 65 16
-  // Must be atomic: split feed+cut commands cause 5-10 s spooler delay
-  cmd(GS, 0x56, 0x41, 16)
+  if (cfg.clinicPhone)
+    push({ text: `${L.registry} · ${cfg.clinicPhone}`, center: true, size: 11 })
 
-  return Buffer.concat(chunks)
+  if (cfg.clinicSite)
+    push({ text: cfg.clinicSite, center: true, size: 11 })
+
+  push({ lf: 1 })
+
+  // 🔥 PRINTED (жирно + отдельно)
+  push({ text: L.printed, center: true, bold: true, size: 11 })
+  push({ text: formatNow(), center: true, bold: true, size: 11 })
+
+  push({ lf: 6 })
+
+  return lines
 }
-
-// ─── Persistent PowerShell RAW-print server ───────────────────────────────────
-
+// ─── Persistent PowerShell GDI print server ───────────────────────────────────
 /**
- * The PS script compiles a C# P/Invoke helper (Add-Type ≈ 2.5 s one-time cost),
- * then loops on stdin reading JSON print jobs and writing JSON results to stdout.
+ * Protocol (same stdin/stdout JSON-lines as before):
+ *   stdin  ← {"printer":"...","fontName":"Courier New","lines":[{...},...]}
+ *   stdout → {"ok":true}  |  {"ok":false,"error":"..."}
  *
- * Protocol:
- *   stdin  ← {"printer":"CUSTOM TG2480-H","data":"<base64 ESC/POS bytes>"}\n
- *   stdout → {"ok":true}\n  |  {"ok":false,"error":"..."}\n
+ * PowerShell uses System.Drawing.Printing.PrintDocument for GDI rendering.
+ * No C# Add-Type compilation — warmup is fast (~100 ms).
  */
 const PS_SCRIPT = `
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 
-Add-Type -Language CSharp -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public class RawPrinter {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    struct DOCINFO {
-        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
-        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
-        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
-    }
-    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
-    static extern bool OpenPrinter(string n, out IntPtr h, IntPtr d);
-    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
-    static extern bool ClosePrinter(IntPtr h);
-    [DllImport("winspool.drv", CharSet=CharSet.Unicode, SetLastError=true)]
-    static extern int  StartDocPrinter(IntPtr h, int lvl, ref DOCINFO di);
-    [DllImport("winspool.drv", SetLastError=true)]
-    static extern bool EndDocPrinter(IntPtr h);
-    [DllImport("winspool.drv", SetLastError=true)]
-    static extern bool StartPagePrinter(IntPtr h);
-    [DllImport("winspool.drv", SetLastError=true)]
-    static extern bool EndPagePrinter(IntPtr h);
-    [DllImport("winspool.drv", SetLastError=true)]
-    static extern bool WritePrinter(IntPtr h, IntPtr p, int n, out int w);
-
-    public static string Send(string printer, byte[] data) {
-        IntPtr hPrinter;
-        if (!OpenPrinter(printer, out hPrinter, IntPtr.Zero))
-            return "OpenPrinter failed: " + Marshal.GetLastWin32Error();
-        try {
-            var di = new DOCINFO { pDocName="Ticket", pOutputFile=null, pDataType="RAW" };
-            if (StartDocPrinter(hPrinter, 1, ref di) == 0)
-                return "StartDocPrinter failed: " + Marshal.GetLastWin32Error();
-            StartPagePrinter(hPrinter);
-            IntPtr ptr = Marshal.AllocCoTaskMem(data.Length);
-            Marshal.Copy(data, 0, ptr, data.Length);
-            int written;
-            bool ok = WritePrinter(hPrinter, ptr, data.Length, out written);
-            Marshal.FreeCoTaskMem(ptr);
-            EndPagePrinter(hPrinter);
-            EndDocPrinter(hPrinter);
-            if (!ok) return "WritePrinter failed: " + Marshal.GetLastWin32Error();
-            return "ok";
-        } finally { ClosePrinter(hPrinter); }
-    }
-}
-'@
+Add-Type -AssemblyName System.Drawing
 
 [Console]::Out.WriteLine('{"ready":true}')
 [Console]::Out.Flush()
 
 while ($true) {
-    $line = [Console]::In.ReadLine()
-    if ($null -eq $line) { break }
-    $line = $line.Trim()
-    if ($line -eq '') { continue }
+    $rawLine = [Console]::In.ReadLine()
+    if ($null -eq $rawLine) { break }
+    $rawLine = $rawLine.Trim()
+    if ($rawLine -eq '') { continue }
     try {
-        $req   = $line | ConvertFrom-Json
-        $bytes = [Convert]::FromBase64String($req.data)
-        $res   = [RawPrinter]::Send($req.printer, $bytes)
-        if ($res -eq 'ok') {
-            $resp = '{"ok":true}'
-        } else {
-            $resp = '{"ok":false,"error":' + ($res | ConvertTo-Json -Compress) + '}'
-        }
+        $req      = $rawLine | ConvertFrom-Json
+        $fontName = if ($req.fontName) { [string]$req.fontName } else { 'Courier New' }
+        $tLines   = $req.lines
+
+        $doc = New-Object System.Drawing.Printing.PrintDocument
+        $doc.PrinterSettings.PrinterName = [string]$req.printer
+        $doc.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(5, 5, 5, 5)
+
+        $doc.add_PrintPage({
+            param($sender, $e)
+            [float]$y    = 5
+            [float]$maxW = $e.PageBounds.Width - 15
+
+            foreach ($tl in $tLines) {
+                # Blank lines
+                if ($null -ne $tl.lf -and [int]$tl.lf -gt 0) {
+                    $bfont = New-Object System.Drawing.Font($fontName, [float]9)
+                    $y += $bfont.GetHeight($e.Graphics) * [float][int]$tl.lf
+                    $bfont.Dispose()
+                    continue
+                }
+
+                $text     = if ($null -ne $tl.text)   { [string]$tl.text } else { '' }
+                $fs       = if ($null -ne $tl.size)    { [float]$tl.size } else { [float]9 }
+                $isBold   = ($null -ne $tl.bold)   -and [bool]$tl.bold
+                $isCenter = ($null -ne $tl.center) -and [bool]$tl.center
+                $style    = if ($isBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+                $font     = New-Object System.Drawing.Font($fontName, $fs, $style)
+                $lh       = $font.GetHeight($e.Graphics)
+
+                if ($isCenter) {
+                    $sz = $e.Graphics.MeasureString($text, $font)
+                    $x  = [Math]::Max([float]5, ($maxW - $sz.Width) / 2 + [float]5)
+                    $e.Graphics.DrawString($text, $font, [System.Drawing.Brushes]::Black, $x, $y)
+                } else {
+                    $e.Graphics.DrawString($text, $font, [System.Drawing.Brushes]::Black, [float]5, $y)
+                }
+
+                $y += $lh
+                $font.Dispose()
+            }
+            $e.HasMorePages = $false
+        }.GetNewClosure())
+
+        $doc.Print()
+        $doc.Dispose()
+        $resp = '{"ok":true}'
     } catch {
         $resp = '{"ok":false,"error":' + ($_.Exception.Message | ConvertTo-Json -Compress) + '}'
     }
@@ -269,6 +313,8 @@ while ($true) {
     [Console]::Out.Flush()
 }
 `
+
+// ─── PS process state (unchanged) ────────────────────────────────────────────
 
 let psProc:    ChildProcessWithoutNullStreams | null = null
 let psReady    = false
@@ -281,7 +327,6 @@ const psQueue: Array<{
 function startPs(): void {
   if (psProc) return
 
-  // Write script to a temp file — avoids command-line length limits
   const scriptPath = path.join(os.tmpdir(), 'med-print-server.ps1')
   fs.writeFileSync(scriptPath, PS_SCRIPT, 'utf-8')
 
@@ -301,7 +346,7 @@ function startPs(): void {
         const msg = JSON.parse(line) as { ready?: boolean; ok?: boolean; error?: string }
         if (msg.ready) {
           psReady = true
-          console.info('[printer] PowerShell server ready')
+          console.info('[printer] PowerShell GDI server ready')
         } else {
           psQueue.shift()?.resolve(msg as { ok: boolean; error?: string })
         }
@@ -324,7 +369,7 @@ function startPs(): void {
   })
 }
 
-/** Call on app.whenReady() — starts PS and warms up Add-Type in the background */
+/** Call on app.whenReady() — starts PS and warms up System.Drawing */
 export function warmupPrinter(): void {
   const cfg = loadConfig()
   if (!cfg.enabled || cfg.simulate) return
@@ -340,7 +385,7 @@ export function shutdownPrinter(): void {
   psReady = false
 }
 
-/** Print a ticket. Resolves with { ok, mode, bytes } */
+/** Print a ticket. Resolves with { ok, mode } */
 export async function printTicket(
   payload: TicketPayload,
 ): Promise<{ ok: boolean; error?: string; mode?: string; bytes?: number }> {
@@ -350,17 +395,15 @@ export async function printTicket(
     return { ok: false, error: 'Принтер отключён в config.json' }
   }
 
-  // ── Simulate mode (dev / test without physical printer) ─────────────────
   if (cfg.simulate) {
-    const buf = buildEscPos(payload, cfg)
-    console.info('[printer] SIMULATE — bytes:', buf.length, '→', cfg.printerName)
-    return { ok: true, mode: 'simulate', bytes: buf.length }
+    const lines = buildTicketLines(payload, cfg)
+    console.info('[printer] SIMULATE — lines:', lines.length, '→', cfg.printerName)
+    return { ok: true, mode: 'simulate', bytes: lines.length }
   }
 
-  // ── Real print via PowerShell RAW server ─────────────────────────────────
   if (!psProc) startPs()
 
-  // Wait for PS to finish Add-Type warmup (up to 10 s)
+  // Wait for PS warmup (up to 10 s)
   if (!psReady) {
     await new Promise<void>((resolve, reject) => {
       const deadline = setTimeout(
@@ -373,8 +416,12 @@ export async function printTicket(
     })
   }
 
-  const buf     = buildEscPos(payload, cfg)
-  const request = JSON.stringify({ printer: cfg.printerName, data: buf.toString('base64') })
+  const lines   = buildTicketLines(payload, cfg)
+  const request = JSON.stringify({
+    printer:  cfg.printerName,
+    fontName: cfg.fontName ?? 'Courier New',
+    lines,
+  })
 
   const result = await new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
     psQueue.push({ resolve, reject })
@@ -386,5 +433,5 @@ export async function printTicket(
     }
   })
 
-  return { ...result, mode: 'windowsRaw', bytes: buf.length }
+  return { ...result, mode: 'windowsGdi', bytes: lines.length }
 }

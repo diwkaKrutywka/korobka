@@ -165,7 +165,10 @@ async function fetchSchedules(extendToDate?: Date) {
       }
       return
     }
-    schedules.value = data.items ?? []
+    const items: Schedule[] = data.items ?? []
+    schedules.value = booking.selectedServiceId
+      ? items.filter(s => s.service_id === booking.selectedServiceId)
+      : items
     autoSelectDay()
   } catch {
     fetchError.value = 'Не удалось загрузить расписание'
@@ -187,8 +190,8 @@ const allDoctors = computed(() => {
 })
 
 const selDoctorName = computed(() => {
-  if (!selDoctorId.value) return 'Все врачи'
-  return allDoctors.value.find(d => d.id === selDoctorId.value)?.full_name ?? 'Все врачи'
+  if (!selDoctorId.value) return t('booking.allDoctors')
+  return allDoctors.value.find(d => d.id === selDoctorId.value)?.full_name ?? t('booking.allDoctors')
 })
 
 function autoSelectDay() {
@@ -393,7 +396,7 @@ const avatarVideoSrc = computed(() =>
       <div v-else-if="fetchError" class="text-center py-8 text-sm fhd:text-xl" style="color:#ef4444">
         {{ fetchError }}
         <button @click="fetchSchedules()" class="block mx-auto mt-3 px-4 fhd:px-7 py-2 fhd:py-4 rounded-xl text-xs fhd:text-lg font-bold border-none cursor-pointer"
-          style="background:#E8EBFF; color:#111FA2;">Повторить</button>
+          style="background:#E8EBFF; color:#111FA2;">{{ t('booking.retry') }}</button>
       </div>
 
       <template v-else>
@@ -419,7 +422,7 @@ const avatarVideoSrc = computed(() =>
               @click="selectDoctor(null)"
               class="w-full px-4 fhd:px-7 py-3 fhd:py-5 text-sm fhd:text-xl font-semibold text-left border-b cursor-pointer"
               :style="{ background: !selDoctorId ? '#E8EBFF' : '#fff', color: !selDoctorId ? '#111FA2' : '#1B2D2A', borderColor:'#e4e6f8' }"
-            >Все врачи</button>
+            >{{ t('booking.allDoctors') }}</button>
             <button
               v-for="doc in allDoctors" :key="doc.id"
               @click="selectDoctor(doc.id)"
@@ -483,7 +486,7 @@ const avatarVideoSrc = computed(() =>
 
         <!-- Time slots -->
         <div v-if="selDayKey">
-          <div class="text-xs fhd:text-xl font-semibold mb-2 fhd:mb-4" style="color:#6b7280">Открытые окошки:</div>
+          <div class="text-xs fhd:text-xl font-semibold mb-2 fhd:mb-4" style="color:#6b7280">{{ t('booking.openSlots') }}</div>
           <div v-if="slotsForDay.length" class="flex flex-wrap gap-2 fhd:gap-3 mb-3 fhd:mb-6">
             <button
               v-for="item in slotsForDay"
@@ -497,7 +500,7 @@ const avatarVideoSrc = computed(() =>
               }"
             >{{ formatTime(item.slot) }}</button>
           </div>
-          <div v-else class="text-xs fhd:text-xl mb-3" style="color:#8a94cc">Нет доступных слотов</div>
+          <div v-else class="text-xs fhd:text-xl mb-3" style="color:#8a94cc">{{ t('booking.noSlots') }}</div>
         </div>
 
         <!-- Empty state -->
@@ -564,7 +567,7 @@ const avatarVideoSrc = computed(() =>
             <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
               <circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 2"/>
             </svg>
-            Запись...
+            {{ t('booking.booking') }}
           </span>
           <span v-else>✓ {{ t('booking.doBook') }}</span>
         </button>

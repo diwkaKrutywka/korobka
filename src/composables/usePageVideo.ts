@@ -10,6 +10,29 @@ export function vid(name: string): string {
   return videos[`/src/assets/video/${name}.mp4`] ?? videos['/src/assets/video/idle.mp4'] ?? ''
 }
 
+// Текст бабла (когда звук выключен) для каждой страницы
+// ru — русский, kz — казахский
+const subtitleMap: Record<string, { ru: string; kz: string }> = {
+  welcome:      { ru: 'Добро пожаловать!',                          kz: 'Қош келдіңіз!' },
+  lang:         { ru: 'Выберите язык',                              kz: 'Тілді таңдаңыз' },
+  home:         { ru: 'Выберите нужную услугу',                     kz: 'Қажетті қызметті таңдаңыз' },
+  book:         { ru: 'Введите ваш ИИН',                           kz: 'ЖСН енгізіңіз' },
+  depts:        { ru: 'Выберите специальность',                     kz: 'Мамандықты таңдаңыз' },
+  services:     { ru: 'Выберите услугу',                            kz: 'Қызметті таңдаңыз' },
+  docs:         { ru: 'Выберите удобное время',                     kz: 'Ыңғайлы уақытты таңдаңыз' },
+  'book-ok':    { ru: 'Запись подтверждена!',                       kz: 'Жазылу расталды!' },
+  osms:         { ru: 'Проверьте статус страховки',                 kz: 'Сақтандыру мәртебесін тексеріңіз' },
+  'osms-check': { ru: 'Введите ИИН для проверки ОСМС',             kz: 'МӘМС тексеру үшін ЖСН енгізіңіз' },
+  info:         { ru: 'Выберите раздел справочной',                 kz: 'Анықтама бөлімін таңдаңыз' },
+  'info-faq':   { ru: 'Часто задаваемые вопросы',                  kz: 'Жиі қойылатын сұрақтар' },
+  'info-sched': { ru: 'Расписание врачей',                         kz: 'Дәрігерлер кестесі' },
+  'info-nav':   { ru: 'Навигация по клинике',                      kz: 'Емхана бойынша навигация' },
+  'info-npa':   { ru: 'Нормативные документы',                     kz: 'Нормативтік құжаттар' },
+  queue:        { ru: 'Получите талон электронной очереди',         kz: 'Электрондық кезек талонын алыңыз' },
+  profile:      { ru: 'Личный кабинет',                            kz: 'Жеке кабинет' },
+  ai:           { ru: 'Спросите меня о поликлинике',               kz: 'Емхана туралы сұраңыз' },
+}
+
 const routeMap: Record<string, { ru: string; kz: string }> = {
   welcome:         { ru: 'idle',                kz: 'idle' },
   lang:            { ru: 'asel-welcome-lang',   kz: 'asel-welcome-lang' },
@@ -74,5 +97,12 @@ export function usePageVideo() {
     if (idleTimer) clearTimeout(idleTimer)
   })
 
-  return { videoSrc, isLoop, onVideoEnded }
+  const pageSubtitle = computed(() => {
+    const entry = subtitleMap[route.name as string]
+    if (!entry) return undefined
+    const lang = locale.value === 'kk' ? 'kz' : 'ru'
+    return entry[lang]
+  })
+
+  return { videoSrc, isLoop, onVideoEnded, pageSubtitle }
 }

@@ -144,7 +144,7 @@
   .numpad-btn { height: 88px !important; font-size: 30px !important; border-radius: 20px !important; }
 
   /* Dept buttons (DepartmentsView) */
-  .dept-btn    { padding: 26px 32px !important; font-size: 1.35rem !important; border-radius: 20px !important; }
+  .dept-btn    { padding: 26px 32px !important; font-size: 1.5rem !important; border-radius: 20px !important; }
   .dept-arrow  { font-size: 1.6rem !important; }
   .depts-title { font-size: 1.55rem !important; margin-bottom: 24px !important; }
 

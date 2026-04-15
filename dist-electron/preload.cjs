@@ -1,1 +1,1 @@
-let e=require(`electron`);e.contextBridge.exposeInMainWorld(`electronPrint`,{getPrinterName:()=>e.ipcRenderer.invoke(`get-printer-name`),printTicket:t=>e.ipcRenderer.invoke(`print-ticket`,t)});
+let e=require(`electron`);e.contextBridge.exposeInMainWorld(`terminal`,{print:t=>e.ipcRenderer.invoke(`terminal:print`,t)});

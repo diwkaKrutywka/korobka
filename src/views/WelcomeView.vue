@@ -26,6 +26,10 @@ watch(videoSrc, (newSrc, oldSrc) => {
 })
 
 onUnmounted(() => { if (fadeTimer) clearTimeout(fadeTimer) })
+
+function startApp() {
+  router.push('/lang')
+}
 </script>
 
 <template>
@@ -50,8 +54,7 @@ onUnmounted(() => { if (fadeTimer) clearTimeout(fadeTimer) })
           style="inset:-24px; background:radial-gradient(circle,rgba(66,165,245,0.15) 0%,transparent 70%);" />
         <div class="absolute rounded-full animate-aura-2"
           style="inset:-24px; background:radial-gradient(circle,rgba(21,101,192,0.1) 0%,transparent 70%);" />
-        <div class="welcome-video rounded-full overflow-hidden border-4 border-white relative"
-          style="box-shadow:0 16px 56px rgba(21,101,192,0.2),0 4px 16px rgba(21,101,192,0.12);">
+        <div class="welcome-video video-glow rounded-full overflow-hidden border-2 border-white relative">
           <!-- Новое видео снизу -->
           <video :key="currSrc" :src="currSrc" autoplay :loop="isLoop" muted playsinline
             class="w-full h-full object-cover" @ended="onVideoEnded" />
@@ -66,7 +69,7 @@ onUnmounted(() => { if (fadeTimer) clearTimeout(fadeTimer) })
       <!-- CTA -->
       <div class="animate-fade-in welcome-cta flex flex-col items-center w-full" style="animation-delay: 0.38s">
         <button
-          @click="router.push('/lang')"
+          @click="startApp"
           class="kb animate-pulse-btn welcome-btn w-full font-extrabold text-white border-none cursor-pointer"
           style="background:linear-gradient(135deg,#1565c0,#42a5f5); box-shadow:0 6px 20px rgba(21,101,192,0.28);"
         >
@@ -107,6 +110,23 @@ onUnmounted(() => { if (fadeTimer) clearTimeout(fadeTimer) })
 .welcome-btn     { padding: 16px 0; border-radius: 999px; font-size: 1.125rem; }
 .welcome-hint    { font-size: 0.75rem; }
 .welcome-footer  { height: 64px; }
+
+.video-glow {
+  box-shadow: 0 16px 56px rgba(21,101,192,0.2), 0 4px 16px rgba(21,101,192,0.12);
+  border-color: rgba(6, 26, 58, 0.55);
+  will-change: filter;
+  animation: video-glow-pulse 5s ease-in-out infinite;
+}
+@keyframes video-glow-pulse {
+  0%,100% {
+    filter: drop-shadow(0 0 6px rgba(13, 49, 107, 0.3));
+    border-color: rgba(99,160,255,0.45);
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(47, 90, 158, 0.65));
+    border-color: rgba(99,160,255,0.85);
+  }
+}
 
 @media (min-width: 1000px) and (min-height: 1600px) {
   .welcome-content { gap: 56px; padding: 0 64px; }
