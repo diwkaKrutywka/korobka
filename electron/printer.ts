@@ -90,7 +90,8 @@ interface TicketLabels {
   appt:        string
   cabinet:     string
   floorSuffix: string
-  thanks:      string
+  thanksLine1:      string
+  thanksLine2:      string
   registry:    string
   printed:     string
 }
