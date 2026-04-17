@@ -32,9 +32,13 @@ onMounted(async () => {
   if (!el) return
 
   const rect = el.getBoundingClientRect()
-  const startSize = (window.innerWidth >= 1000 && window.innerHeight >= 1600) ? 160 : 76
-  const startLeft = window.innerWidth - 14 - startSize
-  const startTop = 10
+  const isFhd = window.innerWidth >= 1000 && window.innerHeight >= 1600
+  const startSize = isFhd
+    ? 240
+    : Math.round(Math.min(Math.max(114, window.innerWidth * 0.18), 210))
+  const startRight = isFhd ? 16 : 14
+  const startTop = isFhd ? 12 : 10
+  const startLeft = window.innerWidth - startRight - startSize
 
   returnCloneStyle.value = {
     position: 'fixed',
@@ -66,7 +70,7 @@ onMounted(async () => {
         height: rect.height + 'px',
         border: '2px solid rgba(59, 130, 246, 0.4)',
         boxShadow: '0 0 10px 2px rgba(59, 130, 246, 0.3), 0 0 24px 6px rgba(99, 160, 255, 0.18)',
-        transition: 'all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        transition: 'all 0.85s cubic-bezier(0.22, 1, 0.36, 1)',
       }
     })
   })
@@ -74,7 +78,7 @@ onMounted(async () => {
   setTimeout(() => {
     returnCloneVisible.value = false
     isReturning.value = false
-  }, 730)
+  }, 870)
 })
 
 async function navigate(route: string) {
@@ -107,9 +111,13 @@ async function navigate(route: string) {
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      const targetSize = (window.innerWidth >= 1000 && window.innerHeight >= 1600) ? 160 : 76
-      const targetLeft = window.innerWidth - 14 - targetSize
-      const targetTop = 10
+      const isFhd = window.innerWidth >= 1000 && window.innerHeight >= 1600
+      const targetSize = isFhd
+        ? 240
+        : Math.round(Math.min(Math.max(114, window.innerWidth * 0.18), 210))
+      const targetRight = isFhd ? 16 : 14
+      const targetTop = isFhd ? 12 : 10
+      const targetLeft = window.innerWidth - targetRight - targetSize
 
       cloneStyle.value = {
         ...cloneStyle.value,
@@ -117,9 +125,9 @@ async function navigate(route: string) {
         top: targetTop + 'px',
         width: targetSize + 'px',
         height: targetSize + 'px',
-        border: '3px solid white',
-        boxShadow: '0 3px 16px rgba(21,101,192,0.22)',
-        transition: 'all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        border: '2px solid rgba(99, 160, 255, 0.5)',
+        boxShadow: '0 3px 12px rgba(21, 101, 192, 0.25)',
+        transition: 'all 0.85s cubic-bezier(0.22, 1, 0.36, 1)',
       }
     })
   })
@@ -127,7 +135,7 @@ async function navigate(route: string) {
   setTimeout(() => {
     sessionStorage.setItem('fromLang', '1')
     router.push(route)
-  }, 730)
+  }, 870)
 }
 
 const menuItems = [

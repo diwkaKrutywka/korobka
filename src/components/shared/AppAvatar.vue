@@ -16,8 +16,12 @@ watch(() => route.fullPath, () => {
   bubbleKey.value++
 })
 
+const fromHome = ref(false)
 onMounted(() => {
-  if (props.mini) sessionStorage.removeItem('fromLang')
+  if (props.mini) {
+    fromHome.value = sessionStorage.getItem('fromLang') === '1'
+    sessionStorage.removeItem('fromLang')
+  }
 })
 
 onUnmounted(() => {
@@ -53,6 +57,7 @@ onUnmounted(() => {
   <!-- Mini avatar in top-right corner -->
   <div v-if="mini"
     class="avatar-mini-container absolute top-2.5 right-3.5 fhd:top-3 fhd:right-4 z-10 flex items-center"
+    :class="{ 'avatar-from-home': fromHome }"
   >
     <!-- Subtitle bubble (shown when muted) -->
     <Transition name="subtitle-fade">
@@ -111,9 +116,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Контейнер мини-аватара: простой fade-in при монтировании */
+/* Контейнер мини-аватара: мгновенное появление при переходе с главной */
 .avatar-mini-container {
-  animation: miniContainerFade 0.35s ease both;
+  animation: miniContainerFade 0.3s ease both;
+}
+
+.avatar-mini-container.avatar-from-home {
+  animation: miniContainerFade 0.15s ease both;
 }
 
 @keyframes miniContainerFade {
